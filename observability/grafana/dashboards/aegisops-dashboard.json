@@ -1,0 +1,76 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
+      "targets": [{"expr": "aegisops_incidents_created_total", "legendFormat": "incidents", "refId": "A"}],
+      "title": "Incidents Created",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
+      "targets": [{"expr": "aegisops_rca_requests_total", "legendFormat": "rca", "refId": "A"}],
+      "title": "RCA Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
+      "targets": [{"expr": "aegisops_ai_confidence_score", "legendFormat": "confidence", "refId": "A"}],
+      "title": "Latest AI Confidence",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
+      "targets": [{"expr": "aegisops_runbook_executions_total", "legendFormat": "runbooks", "refId": "A"}],
+      "title": "Runbook Executions",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+      "id": 5,
+      "targets": [{"expr": "rate(aegisops_rca_latency_seconds_sum[1m]) / rate(aegisops_rca_latency_seconds_count[1m])", "legendFormat": "avg RCA latency", "refId": "A"}],
+      "title": "Average RCA Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+      "id": 6,
+      "targets": [{"expr": "aegisops_tool_failures_total", "legendFormat": "{{tool}}", "refId": "A"}],
+      "title": "Tool Failures",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["aegisops", "ai", "sre"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "title": "AegisOps AI Overview",
+  "uid": "aegisops-overview",
+  "version": 1,
+  "weekStart": ""
+}

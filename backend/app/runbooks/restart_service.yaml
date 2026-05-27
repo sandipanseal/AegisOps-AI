@@ -1,0 +1,10 @@
+name: restart_service
+description: Restart a Kubernetes deployment after human approval.
+risk_level: high
+requires_approval: true
+steps:
+  - Check current pod status
+  - Confirm current deployment revision
+  - Restart Kubernetes deployment
+  - Monitor readiness probes
+  - Verify 5xx error rate and p95 latency

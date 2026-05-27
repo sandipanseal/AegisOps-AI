@@ -1,0 +1,9 @@
+name: scale_service
+description: Increase service replicas during high traffic.
+risk_level: medium
+requires_approval: true
+steps:
+  - Check current replica count
+  - Increase replicas by two
+  - Monitor CPU and memory
+  - Verify p95 latency reduction
