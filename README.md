@@ -26,11 +26,12 @@ unavailable, a deterministic fallback keeps the platform fully operational.
 
 ## Table of contents
 
+- [Why AegisOps AI](#why-aegisops-ai)
 - [Capabilities](#capabilities)
 - [Product tour](#product-tour)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
-- [Run locally](#run-locally)
+- [How to run](#how-to-run)
 - [Workflow](#workflow)
 - [Fault injection](#fault-injection)
 - [Connecting InferOps AI](#connecting-inferops-ai)
@@ -39,6 +40,44 @@ unavailable, a deterministic fallback keeps the platform fully operational.
 - [Observability metrics](#observability-metrics)
 - [Project layout](#project-layout)
 - [Kubernetes](#kubernetes)
+
+## Why AegisOps AI
+
+When a production service degrades at 3 a.m., the clock starts immediately — but the
+response usually doesn't. The cost of an outage scales with how long it takes to
+understand it, and most of that time is lost to manual, repetitive work before anyone
+even forms a hypothesis.
+
+**The problem with how incidents are handled today:**
+
+- **Evidence is scattered.** The on-call engineer manually pulls logs from one tool,
+  metrics from another, pod state from `kubectl`, and the recent deploy history from a
+  fourth — under pressure, in parallel, by hand. This is the slowest part of most
+  incidents.
+- **Root cause depends on who's awake.** Diagnosis leans on tribal knowledge. The
+  engineer who has seen this failure before resolves it in minutes; everyone else
+  rediscovers it from scratch.
+- **Remediation is risky and ad-hoc.** Restarts and rollbacks are run from memory, often
+  without a guardrail between "investigating" and "I just made it worse."
+- **Postmortems are toil.** Writing them up after the fact is tedious, so they're often
+  thin or skipped — and the next incident repeats the last one.
+- **Analysis quality is never measured.** No one tracks whether the root cause was
+  actually correct, so the process never demonstrably improves.
+
+**How AegisOps AI solves it:**
+
+| Problem | What AegisOps does |
+|---|---|
+| Scattered evidence | Specialized agents collect logs, metrics, Kubernetes state, deploy history, and similar past incidents **in parallel, automatically**, the moment an incident opens. |
+| Diagnosis depends on tribal knowledge | An RCA agent synthesizes all evidence into a **confidence-scored root cause** with recommended actions — consistent regardless of who is on call. |
+| Risky manual remediation | Fixes run as **approval-gated runbooks** in simulation mode; nothing touches live infrastructure without explicit human sign-off. |
+| Postmortem toil | A structured postmortem is **generated from the full incident record** on demand. |
+| Unmeasured quality | Every RCA is **scored against a benchmark** of known incidents, so accuracy is tracked over time. |
+| No visibility | Incident, agent, model-cost, and service-health metrics stream to **Prometheus and Grafana** in real time. |
+
+The result is a shorter path from alert to understanding — less time gathering context,
+faster and more consistent root cause, safe remediation, and a system that measurably
+gets better with every incident.
 
 ## Capabilities
 
@@ -141,18 +180,53 @@ otherwise, so the workflow always runs end to end.
 | Observability | Prometheus, Grafana, Loki, OpenTelemetry |
 | Deployment | Docker Compose, Kubernetes manifests, GitHub Actions |
 
-## Run locally
+## How to run
 
-From the project root:
+### Prerequisites
+
+- **Docker Desktop** with Compose v2 (the only requirement for the full stack).
+- *(Optional, for local dev without Docker)* Python 3.11+ and Node.js 20+.
+
+### 1. Get the code
+
+```bash
+git clone <repo-url> aegisops-ai
+cd aegisops-ai
+```
+
+### 2. (Optional) configure integrations
+
+Everything runs out of the box with deterministic fallbacks. To enable the live LLM
+gateway or notifications, create `deployment/.env` (Compose reads it automatically):
+
+```env
+# Optional — InferOps AI LLM gateway
+INFEROPS_AI_URL=https://your-inferops-url.com
+INFEROPS_API_KEY=optional-token
+OPENAI_MODEL=gpt-4.1-mini
+
+# Optional — notifications (records simulated events when unset)
+SLACK_WEBHOOK_URL=
+PAGERDUTY_ROUTING_KEY=
+```
+
+`backend/.env.example` lists every supported variable.
+
+### 3. Start the full stack
 
 ```powershell
 cd deployment
-docker compose down -v
 docker compose up --build
 ```
 
-The first build takes a few minutes. Wait until the backend logs show Uvicorn listening
-on `:8000`, then open:
+This launches the backend, frontend, four monitored services, PostgreSQL, Loki,
+Prometheus, and Grafana. The first build takes a few minutes; wait until the backend logs
+show Uvicorn listening on `:8000`.
+
+> Add `-d` to run detached. To wipe the database and start clean, run
+> `docker compose down -v` first.
+
+### 4. Open the app
 
 | Surface | URL |
 |---|---|
@@ -163,6 +237,39 @@ on `:8000`, then open:
 | Backend API docs | http://localhost:8000/docs |
 | Prometheus | http://localhost:9090 |
 | Grafana (admin / admin) | http://localhost:3001 |
+
+### 5. Verify it's healthy
+
+```powershell
+curl.exe http://localhost:8000/health      # {"status":"healthy", ... "version":"1.0.0"}
+```
+
+Then follow the [Workflow](#workflow) below to drive an incident end to end.
+
+### Run without Docker (local dev)
+
+Useful for hot-reload while developing. Run each in its own terminal:
+
+```powershell
+# Backend (needs a reachable PostgreSQL; set DATABASE_URL accordingly)
+cd backend
+python -m venv .venv; .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev        # http://localhost:3000, talks to the backend on :8000
+```
+
+### Stop and reset
+
+```powershell
+cd deployment
+docker compose down        # stop everything
+docker compose down -v     # stop and wipe the PostgreSQL volume (fresh start)
+```
 
 ## Workflow
 
