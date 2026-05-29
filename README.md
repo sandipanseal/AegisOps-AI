@@ -138,15 +138,23 @@ curl.exe -X POST "http://localhost:8000/runbooks/approve" `
   -d '{"incident_id":1,"runbook_name":"restart_service","approved_by":"portfolio-reviewer","approved":true}'
 ```
 
-## Portfolio positioning
+## Troubleshooting
 
-Use this project as:
+If Docker Compose reports `no configuration file provided: not found`, run Compose from the repository root and point it at the deployment file:
 
-> Agentic GenAI platform for production incident response with RCA, evidence collection, safety-gated runbooks, postmortems, evals and SRE observability.
+```powershell
+docker compose -f deployment\docker-compose.yml up --build
+```
 
-Recommended resume bullet:
+If PowerShell reports `A parameter cannot be found that matches parameter name 'X'`, it is using PowerShell's `curl` alias instead of real curl. Use `Invoke-RestMethod` from the examples above, or call `curl.exe` explicitly.
 
-> Built AegisOps AI, an agentic GenAI incident-command platform using FastAPI, Next.js, PostgreSQL, Docker, Prometheus and Grafana to automate production incident triage, evidence collection, root-cause analysis, human-approved runbooks, postmortem generation and RCA benchmark evaluation.
+If a multi-line `curl.exe` command fails with `URL rejected: Bad hostname` or PowerShell errors for `-H` / `-d`, replace Bash line continuations (`\`) with PowerShell backticks:
+
+```powershell
+curl.exe -X POST "http://localhost:8000/runbooks/approve" `
+  -H "Content-Type: application/json" `
+  -d '{"incident_id":1,"runbook_name":"restart_service","approved_by":"portfolio-reviewer","approved":true}'
+```
 
 ## Next advanced improvements
 
