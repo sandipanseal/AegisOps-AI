@@ -1,21 +1,29 @@
+import json
+from datetime import datetime
 from sqlalchemy.orm import Session
-from app.database import Incident, RCAReport
+from app.database import Incident, RCAReport, EvidenceRecord, AgentTrace, TimelineEvent
 from app.schemas import IncidentCreate
-from app.services.log_analyzer import LogAnalyzer
-from app.services.metric_analyzer import MetricAnalyzer
-from app.services.k8s_analyzer import KubernetesAnalyzer
-from app.services.deployment_analyzer import DeploymentAnalyzer
+from app.services.evidence_collectors import LogAnalysisAgent, MetricsAnalysisAgent, KubernetesStateAgent, DeploymentHistoryAgent
 from app.agents.rca_agent import RCAAgent
-from app.metrics import INCIDENTS_CREATED, RCA_REQUESTS, RCA_LATENCY, AI_CONFIDENCE_SCORE
+from app.agents.base import run_agent
+from app.metrics import INCIDENTS_CREATED, INCIDENT_STATUS, RCA_REQUESTS, RCA_LATENCY, AI_CONFIDENCE_SCORE
 
 
 class IncidentService:
-    def __init__(self) -> None:
-        self.log_analyzer = LogAnalyzer()
-        self.metric_analyzer = MetricAnalyzer()
-        self.k8s_analyzer = KubernetesAnalyzer()
-        self.deployment_analyzer = DeploymentAnalyzer()
+    def __init__(self):
+        self.collectors = [LogAnalysisAgent(), MetricsAnalysisAgent(), KubernetesStateAgent(), DeploymentHistoryAgent()]
         self.rca_agent = RCAAgent()
+
+    def _timeline(self, db: Session, incident_id: int, event_type: str, message: str, actor: str = "system") -> None:
+        db.add(TimelineEvent(incident_id=incident_id, event_type=event_type, message=message, actor=actor))
+
+    def _refresh_status_metrics(self, db: Session) -> None:
+        for status in ["open", "investigating", "resolved"]:
+            count = db.query(Incident).filter(Incident.status == status).count()
+            INCIDENT_STATUS.labels(status=status).set(count)
+
+    def list_incidents(self, db: Session):
+        return db.query(Incident).order_by(Incident.id.desc()).all()
 
     def create_incident(self, db: Session, payload: IncidentCreate) -> Incident:
         incident = Incident(
@@ -24,47 +32,62 @@ class IncidentService:
             service_name=payload.service_name,
             severity=payload.severity.value,
             status="open",
+            scenario_key=payload.scenario_key,
         )
         db.add(incident)
         db.commit()
         db.refresh(incident)
-        INCIDENTS_CREATED.inc()
+        INCIDENTS_CREATED.labels(severity=incident.severity, service=incident.service_name).inc()
+        self._timeline(db, incident.id, "created", f"Incident created for {incident.service_name}.")
+        db.commit()
+        self._refresh_status_metrics(db)
         return incident
-
-    def list_incidents(self, db: Session) -> list[Incident]:
-        return db.query(Incident).order_by(Incident.id.desc()).all()
 
     async def analyze_incident(self, db: Session, incident_id: int):
         incident = db.query(Incident).filter(Incident.id == incident_id).first()
-        if incident is None:
+        if not incident:
             raise ValueError("Incident not found")
 
+        incident.status = "investigating"
+        incident.updated_at = datetime.utcnow()
+        self._timeline(db, incident.id, "analysis_started", "Agentic RCA workflow started.", "IncidentCommanderAgent")
+        db.commit()
+
         RCA_REQUESTS.inc()
+        evidence = []
         with RCA_LATENCY.time():
-            evidence = [
-                self.log_analyzer.analyze(incident.service_name),
-                await self.metric_analyzer.analyze(incident.service_name),
-                self.k8s_analyzer.analyze(incident.service_name),
-                self.deployment_analyzer.analyze(incident.service_name),
-            ]
-            rca = await self.rca_agent.analyze(
-                incident_id=incident.id,
-                title=incident.title,
-                description=incident.description,
-                evidence=evidence,
+            for collector in self.collectors:
+                run = run_agent(
+                    collector.name,
+                    f"Analyze {collector.name} signals for {incident.service_name}",
+                    lambda c=collector: c.run(incident),
+                    lambda output: output.summary if hasattr(output, "summary") else str(output),
+                )
+                db.add(AgentTrace(incident_id=incident.id, agent_name=run.agent_name, status=run.status, latency_ms=run.latency_ms, input_summary=run.input_summary, output_summary=run.output_summary))
+                if run.status == "success":
+                    ev = run.output
+                    evidence.append(ev)
+                    db.add(EvidenceRecord(incident_id=incident.id, source=ev.source, summary=ev.summary, details=json.dumps(ev.details)))
+
+            rca_run = run_agent(
+                self.rca_agent.name,
+                f"Synthesize RCA from {len(evidence)} evidence records",
+                lambda: self.rca_agent.generate(incident, evidence),
+                lambda output: output.suspected_root_cause[:220] if hasattr(output, "suspected_root_cause") else str(output),
             )
+            db.add(AgentTrace(incident_id=incident.id, agent_name=rca_run.agent_name, status=rca_run.status, latency_ms=rca_run.latency_ms, input_summary=rca_run.input_summary, output_summary=rca_run.output_summary))
+            rca = rca_run.output
 
-        AI_CONFIDENCE_SCORE.set(rca.confidence_score)
-        incident.status = "action_pending" if rca.requires_human_approval else "analyzed"
-
-        report = RCAReport(
+        db.add(RCAReport(
             incident_id=incident.id,
             suspected_root_cause=rca.suspected_root_cause,
             confidence_score=rca.confidence_score,
-            recommended_actions="\n".join(rca.recommended_actions),
-            risky_actions="\n".join(rca.risky_actions),
+            recommended_actions=json.dumps(rca.recommended_actions),
+            risky_actions=json.dumps(rca.risky_actions),
             requires_human_approval=rca.requires_human_approval,
-        )
-        db.add(report)
+        ))
+        AI_CONFIDENCE_SCORE.set(rca.confidence_score)
+        self._timeline(db, incident.id, "analysis_completed", f"RCA completed with confidence {rca.confidence_score:.2f}.", "RCAAgent")
         db.commit()
+        self._refresh_status_metrics(db)
         return rca

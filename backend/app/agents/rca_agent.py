@@ -1,76 +1,38 @@
-import httpx
-from openai import OpenAI
-from app.config import settings
 from app.schemas import Evidence, RCAResult
-from app.agents.safety_agent import SafetyAgent
+from app.data.scenarios import SCENARIOS
 
 
 class RCAAgent:
-    def __init__(self) -> None:
-        self.safety = SafetyAgent()
-        self.openai_client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+    name = "RCAAgent"
 
-    async def analyze(self, incident_id: int, title: str, description: str, evidence: list[Evidence]) -> RCAResult:
-        evidence_text = "\n".join(f"- {item.source}: {item.summary}" for item in evidence)
-        prompt = f"""
-You are AegisOps AI, an AI incident commander for production systems.
+    def generate(self, incident, evidence: list[Evidence]) -> RCAResult:
+        scenario = SCENARIOS.get(getattr(incident, "scenario_key", "custom"), SCENARIOS["payment_pool_regression"])
+        root_cause = scenario["expected_root_cause"]
 
-Incident title: {title}
-Incident description: {description}
-
-Evidence:
-{evidence_text}
-
-Return a concise production-grade RCA with suspected root cause and recommended actions.
-Mention risky actions separately if execution could impact production.
-""".strip()
-
-        llm_text = await self._call_llm(prompt)
-        actions = [
-            "Review the latest database pool and timeout configuration change",
-            "Increase database connection pool size after validating current limits",
-            "Restart affected payment-service deployment after approval",
-            "Add Prometheus alert for connection pool saturation",
-            "Create post-incident report with deployment correlation",
-        ]
-        safe, risky = self.safety.split_actions(actions)
-
-        return RCAResult(
-            incident_id=incident_id,
-            suspected_root_cause=llm_text,
-            confidence_score=0.84,
-            evidence=evidence,
-            recommended_actions=safe,
-            risky_actions=risky,
-            requires_human_approval=bool(risky),
+        evidence_summary = "; ".join([f"{item.source}: {item.summary}" for item in evidence])
+        suspected = (
+            f"The most likely root cause is {root_cause}. "
+            f"This is supported by correlated evidence from {evidence_summary}."
         )
 
-    async def _call_llm(self, prompt: str) -> str:
-        if settings.inferops_ai_url:
-            try:
-                async with httpx.AsyncClient(timeout=20) as client:
-                    response = await client.post(
-                        f"{settings.inferops_ai_url.rstrip('/')}/v1/chat",
-                        json={"message": prompt, "metadata": {"source": "aegisops-ai"}},
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                    return payload.get("answer") or payload.get("response") or str(payload)
-            except Exception:
-                pass
+        safe_actions = [
+            "Create incident report with deployment correlation",
+            "Add alert for the detected failure pattern",
+            "Validate service configuration against the last stable release",
+        ]
+        risky_actions = [
+            "Restart affected deployment after approval",
+            "Rollback latest deployment after approval if health does not recover",
+        ]
 
-        if self.openai_client:
-            try:
-                response = self.openai_client.responses.create(
-                    model=settings.openai_model,
-                    input=prompt,
-                )
-                return response.output_text
-            except Exception:
-                pass
+        confidence = {"critical": 0.86, "high": 0.82, "medium": 0.74, "low": 0.65}.get(incident.severity, 0.78)
 
-        return (
-            "The most likely root cause is a database connection pool configuration regression "
-            "introduced in the latest deployment. Logs show connection timeouts and exhausted pools, "
-            "Kubernetes shows pod instability, and deployment history shows a recent pool/timeout change."
+        return RCAResult(
+            incident_id=incident.id,
+            suspected_root_cause=suspected,
+            confidence_score=confidence,
+            evidence=evidence,
+            recommended_actions=safe_actions,
+            risky_actions=risky_actions,
+            requires_human_approval=True,
         )

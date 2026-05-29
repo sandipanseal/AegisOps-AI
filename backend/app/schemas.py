@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class Severity(str, Enum):
@@ -10,33 +10,18 @@ class Severity(str, Enum):
     critical = "critical"
 
 
-class IncidentStatus(str, Enum):
-    open = "open"
-    analyzed = "analyzed"
-    action_pending = "action_pending"
-    resolved = "resolved"
-
-
 class IncidentCreate(BaseModel):
-    title: str = Field(..., examples=["Payment API latency spike"])
-    description: str = Field(..., examples=["Payment service latency increased by 400% after latest deployment."])
-    service_name: str = Field(..., examples=["payment-service"])
-    severity: Severity = Severity.high
-
-
-class IncidentOut(BaseModel):
-    id: int
     title: str
     description: str
     service_name: str
-    severity: str
-    status: str
+    severity: Severity = Severity.medium
+    scenario_key: str = "custom"
 
 
 class Evidence(BaseModel):
     source: str
     summary: str
-    details: dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = {}
 
 
 class RCAResult(BaseModel):
@@ -52,10 +37,15 @@ class RCAResult(BaseModel):
 class RunbookApproval(BaseModel):
     incident_id: int
     runbook_name: str
-    approved_by: str
+    approved_by: str = "portfolio-reviewer"
     approved: bool
 
 
 class EvalRequest(BaseModel):
     predicted_root_cause: str
     expected_root_cause: str
+
+
+class PostmortemResponse(BaseModel):
+    incident_id: int
+    markdown: str

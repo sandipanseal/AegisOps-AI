@@ -17,6 +17,32 @@ class Incident(Base):
     service_name = Column(String(120), nullable=False)
     severity = Column(String(40), nullable=False)
     status = Column(String(40), default="open")
+    scenario_key = Column(String(120), default="custom")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EvidenceRecord(Base):
+    __tablename__ = "evidence_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    source = Column(String(120), nullable=False)
+    summary = Column(Text, nullable=False)
+    details = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AgentTrace(Base):
+    __tablename__ = "agent_traces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    agent_name = Column(String(120), nullable=False)
+    status = Column(String(40), nullable=False)
+    latency_ms = Column(Float, nullable=False)
+    input_summary = Column(Text, nullable=False)
+    output_summary = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -24,7 +50,7 @@ class RCAReport(Base):
     __tablename__ = "rca_reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, nullable=False)
+    incident_id = Column(Integer, nullable=False, index=True)
     suspected_root_cause = Column(Text, nullable=False)
     confidence_score = Column(Float, nullable=False)
     recommended_actions = Column(Text, nullable=False)
@@ -37,11 +63,43 @@ class RunbookExecution(Base):
     __tablename__ = "runbook_executions"
 
     id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, nullable=False)
+    incident_id = Column(Integer, nullable=False, index=True)
     runbook_name = Column(String(120), nullable=False)
     approved_by = Column(String(120), nullable=False)
     status = Column(String(80), nullable=False)
     result = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TimelineEvent(Base):
+    __tablename__ = "timeline_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    event_type = Column(String(80), nullable=False)
+    message = Column(Text, nullable=False)
+    actor = Column(String(120), default="system")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Postmortem(Base):
+    __tablename__ = "postmortems"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    markdown = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EvaluationResult(Base):
+    __tablename__ = "evaluation_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    total_cases = Column(Integer, nullable=False)
+    passed_cases = Column(Integer, nullable=False)
+    score = Column(Float, nullable=False)
+    details = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

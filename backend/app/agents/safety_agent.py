@@ -1,16 +1,9 @@
 class SafetyAgent:
-    risky_keywords = ["delete", "drop", "terminate", "rollback", "scale down", "restart", "production"]
+    risky_keywords = ["restart", "rollback", "delete", "drop", "terminate", "scale down", "production"]
 
-    def split_actions(self, actions: list[str]) -> tuple[list[str], list[str]]:
-        safe: list[str] = []
-        risky: list[str] = []
+    def classify(self, actions: list[str]) -> dict:
+        safe, risky = [], []
         for action in actions:
-            normalized = action.lower()
-            if any(keyword in normalized for keyword in self.risky_keywords):
-                risky.append(action)
-            else:
-                safe.append(action)
-        return safe, risky
-
-    def requires_approval(self, actions: list[str]) -> bool:
-        return bool(self.split_actions(actions)[1])
+            target = risky if any(word in action.lower() for word in self.risky_keywords) else safe
+            target.append(action)
+        return {"safe": safe, "risky": risky, "requires_approval": bool(risky)}

@@ -1,10 +1,10 @@
 name: rollback_deployment
-description: Roll back to the previous stable deployment revision.
+description: Roll back to previous stable deployment revision.
 risk_level: high
 requires_approval: true
 steps:
   - Identify current deployment revision
   - Identify previous stable revision
-  - Perform rollback
-  - Monitor service health
-  - Generate post-rollback report
+  - Roll back deployment in staging-safe mode
+  - Monitor pod readiness and error rate
+  - Generate rollback report

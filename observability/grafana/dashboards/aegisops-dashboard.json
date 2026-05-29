@@ -1,76 +1,209 @@
 {
-  "annotations": {"list": []},
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "links": [],
+  "uid": "aegisops-overview",
+  "title": "AegisOps AI Overview",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "5s",
   "panels": [
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
-      "id": 1,
-      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
-      "targets": [{"expr": "aegisops_incidents_created_total", "legendFormat": "incidents", "refId": "A"}],
+      "type": "stat",
       "title": "Incidents Created",
-      "type": "stat"
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(aegisops_incidents_created_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
-      "id": 2,
-      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
-      "targets": [{"expr": "aegisops_rca_requests_total", "legendFormat": "rca", "refId": "A"}],
+      "type": "stat",
       "title": "RCA Requests",
-      "type": "stat"
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "aegisops_rca_requests_total",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
-      "id": 3,
-      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
-      "targets": [{"expr": "aegisops_ai_confidence_score", "legendFormat": "confidence", "refId": "A"}],
+      "type": "stat",
       "title": "Latest AI Confidence",
-      "type": "stat"
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "aegisops_ai_confidence_score",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
-      "id": 4,
-      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}},
-      "targets": [{"expr": "aegisops_runbook_executions_total", "legendFormat": "runbooks", "refId": "A"}],
+      "type": "stat",
       "title": "Runbook Executions",
-      "type": "stat"
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(aegisops_runbook_executions_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
-      "id": 5,
-      "targets": [{"expr": "rate(aegisops_rca_latency_seconds_sum[1m]) / rate(aegisops_rca_latency_seconds_count[1m])", "legendFormat": "avg RCA latency", "refId": "A"}],
-      "title": "Average RCA Latency",
-      "type": "timeseries"
+      "type": "stat",
+      "title": "Latest Eval Score",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "aegisops_latest_eval_score",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "datasource": {"type": "prometheus", "uid": "Prometheus"},
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
-      "id": 6,
-      "targets": [{"expr": "aegisops_tool_failures_total", "legendFormat": "{{tool}}", "refId": "A"}],
+      "type": "stat",
       "title": "Tool Failures",
-      "type": "timeseries"
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(aegisops_tool_failures_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Average RCA Latency",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "rate(aegisops_rca_latency_seconds_sum[5m]) / rate(aegisops_rca_latency_seconds_count[5m])",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Agent Latency by Agent",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "sum by (agent) (rate(aegisops_agent_latency_seconds_sum[5m]) / rate(aegisops_agent_latency_seconds_count[5m]))",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Incidents by Status",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "aegisops_incidents_by_status",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Runbooks by Type",
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "sum by (runbook) (aegisops_runbook_executions_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     }
-  ],
-  "refresh": "5s",
-  "schemaVersion": 39,
-  "tags": ["aegisops", "ai", "sre"],
-  "templating": {"list": []},
-  "time": {"from": "now-15m", "to": "now"},
-  "title": "AegisOps AI Overview",
-  "uid": "aegisops-overview",
-  "version": 1,
-  "weekStart": ""
+  ]
 }
