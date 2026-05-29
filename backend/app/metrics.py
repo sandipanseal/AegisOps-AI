@@ -11,6 +11,7 @@ AI_CONFIDENCE_SCORE = Gauge("aegisops_ai_confidence_score", "Latest AI RCA confi
 TOOL_FAILURES = Counter("aegisops_tool_failures_total", "Tool failures by tool name", ["tool"])
 EVAL_SCORE = Gauge("aegisops_latest_eval_score", "Latest benchmark evaluation score")
 INFEROPS_CALLS = Counter("aegisops_inferops_calls_total", "Total InferOps AI gateway calls", ["status"])
+OPENAI_CALLS = Counter("aegisops_openai_calls_total", "Total direct OpenAI chat-completion calls", ["status"])
 SERVICE_FAULTS = Counter("aegisops_service_faults_total", "Faults injected into monitored services", ["service", "mode"])
 
 LOKI_QUERIES = Counter("aegisops_loki_queries_total", "Loki log-search queries", ["status"])

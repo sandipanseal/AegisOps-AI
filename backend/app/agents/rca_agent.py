@@ -1,6 +1,7 @@
 from app.schemas import Evidence, RCAResult
 from app.data.scenarios import SCENARIOS
 from app.services.inferops_client import InferOpsClient
+from app.services.openai_client import OpenAIClient
 
 
 class RCAAgent:
@@ -8,6 +9,7 @@ class RCAAgent:
 
     def __init__(self) -> None:
         self.inferops = InferOpsClient()
+        self.openai = OpenAIClient()
         self.last_model_invocation = None
 
     def generate(self, incident, evidence: list[Evidence]) -> RCAResult:
@@ -33,7 +35,12 @@ why the evidence supports it, and the safest next operational actions. Do not
 recommend destructive action without human approval.
 """.strip()
 
+        # Prefer a live InferOps AI gateway when one is configured; otherwise fall
+        # back to a direct OpenAI call so the real-model path (and its cost/latency
+        # tracking) still works with just OPENAI_API_KEY set.
         gateway_result = self.inferops.synthesize_rca_with_metadata(prompt)
+        if not gateway_result:
+            gateway_result = self.openai.synthesize_rca_with_metadata(prompt)
         self.last_model_invocation = gateway_result
         gateway_text = gateway_result["text"] if gateway_result else None
         if gateway_text:

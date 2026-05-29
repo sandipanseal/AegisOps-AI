@@ -11,6 +11,7 @@ os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SERVICE_REGISTRY"] = ""          # no live services -> instant fixture fallback
 os.environ["LOKI_URL"] = "http://localhost:1"  # fails fast -> empty log results
 os.environ["INFEROPS_AI_URL"] = ""           # deterministic fallback RCA
+os.environ["OPENAI_API_KEY"] = ""            # no live OpenAI fallback -> deterministic RCA
 os.environ["SLACK_WEBHOOK_URL"] = ""         # simulated notifications
 os.environ["PAGERDUTY_ROUTING_KEY"] = ""
 os.environ["ENABLE_K8S_ADAPTER"] = "false"

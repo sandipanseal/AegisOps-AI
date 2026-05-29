@@ -309,6 +309,7 @@ the compose file (`deployment/.env`):
 ```env
 INFEROPS_AI_URL=https://your-inferops-url.com
 INFEROPS_API_KEY=optional-token
+OPENAI_API_KEY=sk-...        # used as the live-model fallback when no gateway is set
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
@@ -324,8 +325,11 @@ docker compose exec backend printenv INFEROPS_AI_URL
 Invoke-RestMethod http://localhost:8000/model-usage   # total_calls > 0 when live
 ```
 
-All live LLM traffic flows through `INFEROPS_AI_URL`; if it is unset or unreachable, the
-deterministic fallback RCA is used and `model-usage` stays at zero.
+RCA synthesis prefers `INFEROPS_AI_URL` when a gateway is configured. If the gateway is
+unset or unreachable, it falls back to a direct OpenAI call when `OPENAI_API_KEY` is set —
+this still records provider/model/latency/token/cost, so `model-usage` populates with live
+data. Only when neither a gateway nor an OpenAI key is available does the deterministic
+fallback RCA run and `model-usage` stays at zero.
 
 ## Integrations
 
@@ -335,7 +339,7 @@ deterministic fallback RCA is used and `model-usage` stays at zero.
 | **Kubernetes adapter** | `KubernetesStateAgent` reads live pod/deployment state | `ENABLE_K8S_ADAPTER`, `KUBECONFIG_PATH` |
 | **Slack / PagerDuty** | Sends notifications on incident creation and RCA completion; records simulated events when keys are unset | `SLACK_WEBHOOK_URL`, `PAGERDUTY_ROUTING_KEY` |
 | **RAG memory** | Indexes incidents, RCA reports, evidence, and runbooks; `RagMemoryAgent` retrieves similar history | — |
-| **InferOps AI** | RCA synthesis with provider/model/latency/token/cost tracking | `INFEROPS_AI_URL`, `INFEROPS_API_KEY` |
+| **InferOps AI** | RCA synthesis with provider/model/latency/token/cost tracking; falls back to a direct OpenAI call when no gateway is set | `INFEROPS_AI_URL`, `INFEROPS_API_KEY`, `OPENAI_API_KEY` |
 
 The Integrations page (`/integrations`) drives all of these from the browser. The
 Kubernetes adapter is off by default and falls back to service-reported Kubernetes
