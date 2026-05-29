@@ -2,7 +2,6 @@
 
 AegisOps AI is a portfolio-grade GenAI/SRE platform for production incident response. It turns alerts into multi-agent evidence collection, root-cause analysis, approval-gated runbooks, postmortems, RCA evals, and full Prometheus/Grafana observability.
 
-This v3 version is designed to complement an LLM gateway such as **InferOps AI**:
 
 ```text
 AegisOps AI = agentic production application
@@ -156,29 +155,9 @@ AegisOps will call InferOps AI for RCA synthesis. If the gateway is unavailable,
 | `GET /metrics` | Prometheus metrics |
 | `POST /demo-services/{service}/simulate-failure` | Inject demo failure |
 
-## Portfolio positioning
+## Screenshots 
 
-Use this GitHub subtitle:
 
-> Agentic GenAI SRE platform for production incident triage, evidence collection, root-cause analysis, approval-gated runbooks, postmortems, evals, and observability.
-
-## Resume bullet
-
-> Built AegisOps AI, an agentic GenAI incident-command platform using FastAPI, Next.js, PostgreSQL, Docker, Prometheus and Grafana to automate production incident triage, live microservice evidence collection, root-cause analysis, human-approved runbooks, postmortem generation and RCA benchmark evaluation, with optional integration to an InferOps AI LLM gateway.
-
-## Screenshots to add before publishing
-
-Add screenshots under `docs/screenshots/`:
-
-- frontend dashboard
-- incident detail page
-- evidence tab
-- agent traces tab
-- postmortem page
-- Grafana dashboard
-- backend Swagger docs
-
-Then reference them from this README.
 
 ## Roadmap
 
