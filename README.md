@@ -38,6 +38,7 @@ unavailable, a deterministic fallback keeps the platform fully operational.
 - [Integrations](#integrations)
 - [Key API endpoints](#key-api-endpoints)
 - [Observability metrics](#observability-metrics)
+- [Testing](#testing)
 - [Project layout](#project-layout)
 - [Kubernetes](#kubernetes)
 
@@ -380,6 +381,46 @@ aegisops_rag_queries_total
 > container is rebuilt. Incident and runbook history is persisted in PostgreSQL and
 > always reflected in the UI; re-running a workflow repopulates the counters.
 
+## Testing
+
+All automated tests live under [`Tests/`](Tests/), split by surface:
+
+| Suite | Path | Coverage |
+|---|---|---|
+| Backend regression | `Tests/backend/` | pytest API suite — health, full incident lifecycle (create → analyze → approve runbook → postmortem), evals, and graceful integration fallbacks. Runs on in-memory SQLite with no external services. |
+| Frontend end-to-end | `Tests/e2e/` | Playwright suite — dashboard + 3D topology, navigation, the complete incident workflow, fault injection, benchmark, and integrations. |
+
+### Backend tests
+
+```powershell
+cd backend
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+cd ..
+pytest          # uses pytest.ini -> Tests/backend
+```
+
+### Frontend end-to-end tests
+
+Start the stack first (`cd deployment && docker compose up`), then:
+
+```powershell
+cd Tests/e2e
+npm install
+npx playwright install chromium     # one-time
+npm run test:e2e                    # or: npm run test:e2e:ui
+```
+
+### Continuous integration
+
+Every push to `main` and every pull request runs three jobs in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+- **backend-ci** — installs deps, byte-compiles, runs the pytest suite.
+- **frontend-ci** — builds and type-checks the Next.js app.
+- **e2e** — starts PostgreSQL + the backend + the frontend, runs the Playwright suite,
+  and uploads the HTML report as an artifact.
+
 ## Project layout
 
 ```text
@@ -395,6 +436,9 @@ aegisops-ai/
 │   ├── components/         UI kit, nav, animated background, 3D topology
 │   └── lib/                API client + types, formatting helpers
 ├── services/           monitored FastAPI microservices (Prometheus metrics)
+├── Tests/              automated tests
+│   ├── backend/            pytest regression suite
+│   └── e2e/                Playwright end-to-end suite
 ├── observability/      Prometheus, Grafana dashboards, Loki config
 └── deployment/         Docker Compose + Kubernetes manifests
 ```

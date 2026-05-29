@@ -7,21 +7,24 @@ on:
 
 jobs:
   backend-ci:
+    name: Backend regression tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
       - name: Syntax check
+        working-directory: backend
         run: python -m compileall app
+      - name: Run regression tests
+        run: pytest
 
   frontend-ci:
+    name: Frontend build & type check
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,3 +38,77 @@ jobs:
         run: npm install
       - name: Build frontend
         run: npm run build
+
+  e2e:
+    name: Frontend end-to-end tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aegisops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Start backend
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aegisops
+          SERVICE_REGISTRY: ""
+          LOKI_URL: http://localhost:1
+          INFEROPS_AI_URL: ""
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:8000/health
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend
+        working-directory: frontend
+        run: npm install
+      - name: Start frontend
+        working-directory: frontend
+        run: |
+          nohup npm run dev > frontend.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000 && break
+            sleep 2
+          done
+
+      - name: Install E2E dependencies
+        working-directory: Tests/e2e
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        working-directory: Tests/e2e
+        env:
+          CI: "true"
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: Tests/e2e/playwright-report
+          retention-days: 7

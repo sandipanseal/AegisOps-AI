@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # Ignore unknown env vars (e.g. a stale REDIS_URL from an older .env) instead of crashing.
+        extra = "ignore"
 
 
 settings = Settings()

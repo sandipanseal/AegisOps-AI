@@ -1,8 +1,35 @@
+# Secrets / env (keeps .env.example tracked)
 .env
+.env.local
+
+# Python
 __pycache__/
 *.pyc
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node / Next.js
 node_modules/
 .next/
 *.tsbuildinfo
+
+# Local databases / runtime logs
+*.db
+*.sqlite3
+backend/backend.log
+
+# Playwright / e2e artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Editor / OS
+.idea/
+.vscode/
 .DS_Store
-.env.local
+Thumbs.db
