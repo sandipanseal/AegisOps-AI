@@ -21,7 +21,7 @@ InferOps AI = LLM routing / safety / RAG / observability gateway
 - Dedicated pages for incidents, incident detail, postmortems, and evals
 - Docker Compose end-to-end deployment
 
-## Architecture
+## Architecture diagram
 
 ```mermaid
 flowchart TD
@@ -155,7 +155,33 @@ AegisOps will call InferOps AI for RCA synthesis. If the gateway is unavailable,
 | `GET /metrics` | Prometheus metrics |
 | `POST /demo-services/{service}/simulate-failure` | Inject demo failure |
 
-## Screenshots 
+## Screenshots
+
+
+### Frontend overview
+
+Main incident-command console with scenario creation and operational summary.
+
+![AegisOps AI frontend overview](docs/images/frontend-overview.png)
+
+### Incident detail
+
+Incident workspace showing RCA output, evidence, agent traces, timeline, runbooks, postmortem, and eval context.
+
+![AegisOps AI incident detail](docs/images/incident-detail.png)
+
+### Grafana dashboard
+
+Provisioned observability dashboard for RCA latency, agent latency, eval score, confidence, and runbook metrics.
+
+![AegisOps AI Grafana dashboard](docs/images/grafana-dashboard.png)
+
+### Eval center
+
+RCA benchmark view for validating deterministic evaluation output across incident scenarios.
+
+![AegisOps AI eval center](docs/images/eval-center.png)
+
 
 
 
