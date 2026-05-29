@@ -1,0 +1,132 @@
+export const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+export const GRAFANA_URL =
+  process.env.NEXT_PUBLIC_GRAFANA_URL ||
+  "http://localhost:3001/d/aegisops-overview/aegisops-ai-overview?orgId=1&refresh=5s";
+
+export async function api<T = any>(
+  path: string,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    headers:
+      options?.body && !(options.headers as any)?.["Content-Type"]
+        ? { "Content-Type": "application/json", ...(options?.headers || {}) }
+        : options?.headers,
+    ...options,
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error((data && (data.detail || data.message)) || "Request failed");
+  }
+  return data as T;
+}
+
+export const json = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+// ---- Domain types ----
+
+export type Incident = {
+  id: number;
+  title: string;
+  description: string;
+  service_name: string;
+  severity: string;
+  status: string;
+  scenario_key: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type Scenario = {
+  key: string;
+  title: string;
+  service_name: string;
+  severity: string;
+  description: string;
+};
+
+export type Evidence = {
+  source: string;
+  summary: string;
+  details: Record<string, any>;
+};
+
+export type AgentTrace = {
+  agent_name: string;
+  status: string;
+  latency_ms: number;
+  input_summary?: string;
+  output_summary: string;
+  created_at: string;
+};
+
+export type RCA = {
+  suspected_root_cause: string;
+  confidence_score: number;
+  recommended_actions: string[];
+  risky_actions: string[];
+  requires_human_approval: boolean;
+  created_at: string;
+};
+
+export type RunbookRun = {
+  runbook_name: string;
+  approved_by: string;
+  status: string;
+  result: string;
+  created_at: string;
+};
+
+export type TimelineEvent = {
+  event_type: string;
+  message: string;
+  actor: string;
+  created_at: string;
+};
+
+export type IncidentDetail = {
+  incident: Incident;
+  evidence: Evidence[];
+  agent_traces: AgentTrace[];
+  rca: RCA | null;
+  runbooks: RunbookRun[];
+  timeline: TimelineEvent[];
+  postmortem: string | null;
+};
+
+export type DashboardSummary = {
+  total_incidents: number;
+  open: number;
+  investigating: number;
+  resolved: number;
+  runbook_executions: number;
+  agent_traces: number;
+  latest_ai_confidence: number | null;
+  latest_eval_score: number | null;
+  model_invocations: number;
+  model_cost_usd: number;
+  notifications: number;
+};
+
+export type EvalRun = {
+  name: string;
+  total_cases: number;
+  passed_cases: number;
+  score: number;
+  created_at: string;
+  details: any;
+};
+
+export const SERVICES = [
+  "payment-service",
+  "checkout-service",
+  "auth-service",
+  "recommendation-service",
+] as const;

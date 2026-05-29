@@ -16,12 +16,26 @@ class Settings(BaseSettings):
     inferops_timeout_seconds: float = 20.0
 
     database_url: str = "postgresql://postgres:postgres@postgres:5432/aegisops"
-    redis_url: str = "redis://redis:6379/0"
     prometheus_url: str = "http://prometheus:9090"
+    loki_url: str = "http://loki:3100"
 
-    # Demo microservices used by the evidence agents. In Docker Compose these names
-    # resolve through the internal Compose network.
-    demo_service_urls: str = (
+    # Optional notification webhooks. If unset, notification calls are simulated.
+    slack_webhook_url: str | None = None
+    pagerduty_events_url: str = "https://events.pagerduty.com/v2/enqueue"
+    pagerduty_routing_key: str | None = None
+
+    # Local Kubernetes / Kind adapter. In Docker this is disabled by default.
+    # For Kind/local use, run backend locally or mount kubeconfig and set ENABLE_K8S_ADAPTER=true.
+    enable_k8s_adapter: bool = False
+    kubeconfig_path: str | None = None
+
+    # Simple model pricing defaults used when InferOps does not return cost metadata.
+    default_prompt_cost_per_1k: float = 0.00015
+    default_completion_cost_per_1k: float = 0.00060
+
+    # Registry of monitored services the evidence agents read signals from.
+    # In Docker Compose these names resolve through the internal Compose network.
+    service_registry: str = (
         "payment-service=http://payment-service:8100,"
         "checkout-service=http://checkout-service:8100,"
         "auth-service=http://auth-service:8100,"
@@ -35,9 +49,9 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-def demo_service_url_map() -> dict[str, str]:
+def service_registry_map() -> dict[str, str]:
     urls: dict[str, str] = {}
-    for item in settings.demo_service_urls.split(","):
+    for item in settings.service_registry.split(","):
         if "=" not in item:
             continue
         name, url = item.split("=", 1)

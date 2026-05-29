@@ -37,7 +37,7 @@ class RCAResult(BaseModel):
 class RunbookApproval(BaseModel):
     incident_id: int
     runbook_name: str
-    approved_by: str = "portfolio-reviewer"
+    approved_by: str = "sre-oncall"
     approved: bool
 
 

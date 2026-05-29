@@ -103,5 +103,44 @@ class EvaluationResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class RagDocument(Base):
+    __tablename__ = "rag_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_type = Column(String(80), nullable=False)
+    source_id = Column(String(120), nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class NotificationEvent(Base):
+    __tablename__ = "notification_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=True, index=True)
+    channel = Column(String(80), nullable=False)
+    status = Column(String(80), nullable=False)
+    payload = Column(Text, nullable=False)
+    response = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ModelInvocation(Base):
+    __tablename__ = "model_invocations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=True, index=True)
+    provider = Column(String(80), nullable=False)
+    model = Column(String(120), nullable=False)
+    latency_ms = Column(Float, nullable=False)
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    cost_usd = Column(Float, default=0.0)
+    status = Column(String(80), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)

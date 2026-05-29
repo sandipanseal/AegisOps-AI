@@ -8,6 +8,7 @@ class RCAAgent:
 
     def __init__(self) -> None:
         self.inferops = InferOpsClient()
+        self.last_model_invocation = None
 
     def generate(self, incident, evidence: list[Evidence]) -> RCAResult:
         scenario = SCENARIOS.get(getattr(incident, "scenario_key", "custom"), SCENARIOS["payment_pool_regression"])
@@ -32,7 +33,9 @@ why the evidence supports it, and the safest next operational actions. Do not
 recommend destructive action without human approval.
 """.strip()
 
-        gateway_text = self.inferops.synthesize_rca(prompt)
+        gateway_result = self.inferops.synthesize_rca_with_metadata(prompt)
+        self.last_model_invocation = gateway_result
+        gateway_text = gateway_result["text"] if gateway_result else None
         if gateway_text:
             suspected = gateway_text[:1800]
             confidence = {"critical": 0.88, "high": 0.84, "medium": 0.76, "low": 0.68}.get(incident.severity, 0.78)
@@ -47,7 +50,7 @@ recommend destructive action without human approval.
             "Create incident report with deployment correlation",
             "Add alert for the detected failure pattern",
             "Validate service configuration against the last stable release",
-            "Compare current service metrics against the demo-service baseline",
+            "Compare current service metrics against the last stable baseline",
         ]
         risky_actions = [
             "Restart affected deployment after approval",

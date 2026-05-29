@@ -1,78 +1,96 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type Incident = {
-  id: number;
-  title: string;
-  service_name: string;
-  severity: string;
-  status: string;
-  created_at?: string;
-};
+import Link from "next/link";
+import { Zap } from "lucide-react";
+import { api, SERVICES, type Incident } from "@/lib/api";
+import { severityTone, statusTone, timeAgo } from "@/lib/format";
+import { Badge, Button, Card, EmptyState, SectionTitle } from "@/components/ui";
 
 export default function IncidentsPage() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [message, setMessage] = useState("");
 
   async function loadIncidents() {
-    const response = await fetch(`${backendUrl}/incidents`);
-    setIncidents(await response.json());
+    setIncidents(await api<Incident[]>("/incidents"));
   }
 
-  async function simulate(service: string) {
-    setMessage(`Injecting synthetic failure into ${service}...`);
-    const response = await fetch(`${backendUrl}/demo-services/${service}/simulate-failure`, { method: "POST" });
-    const data = await response.json();
-    setMessage(response.ok ? `Injected ${data.mode} into ${service}.` : `Failed: ${data.detail}`);
+  async function injectFault(service: string) {
+    setMessage(`Injecting fault into ${service}…`);
+    try {
+      const data = await api<{ mode: string }>(`/services/${service}/simulate-failure`, {
+        method: "POST",
+      });
+      setMessage(`Injected "${data.mode}" fault into ${service}. Open a matching scenario from the command center.`);
+    } catch (err: any) {
+      setMessage(`Failed: ${err.message}`);
+    }
   }
 
   useEffect(() => {
-    loadIncidents();
+    loadIncidents().catch(() => setMessage("Backend unreachable."));
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-950 p-8 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <a href="/" className="text-cyan-300">← Back to dashboard</a>
-        <section className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">AegisOps AI</p>
-          <h1 className="mt-3 text-4xl font-black">Incident Center</h1>
-          <p className="mt-2 max-w-3xl text-slate-300">
-            Dedicated incident list for reviewing RCA status, generated postmortems, timelines, and runbook history.
-          </p>
-        </section>
+    <main className="mx-auto max-w-6xl px-5 pb-20 pt-8 md:px-8">
+      <Card delay={0}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">
+          Incident Center
+        </p>
+        <h1 className="mt-2 text-3xl font-black text-white md:text-4xl">All incidents</h1>
+        <p className="mt-2 max-w-2xl text-slate-300">
+          Review RCA status, generated postmortems, timelines, and runbook history across
+          every incident.
+        </p>
+      </Card>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
-          <h2 className="text-xl font-bold">Demo Microservice Failure Injection</h2>
-          <p className="mt-2 text-sm text-slate-400">Inject real synthetic signals into demo services, then create/run matching scenarios from the main dashboard.</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {["payment-service", "checkout-service", "auth-service", "recommendation-service"].map((service) => (
-              <button key={service} onClick={() => simulate(service)} className="rounded-xl bg-cyan-500 px-4 py-3 font-bold text-slate-950 hover:bg-cyan-300">
-                Inject {service}
-              </button>
-            ))}
-          </div>
-          {message && <div className="mt-4 rounded-xl border border-emerald-800 bg-emerald-950 p-3 text-emerald-200">{message}</div>}
-        </section>
-
-        <section className="grid gap-4">
-          {incidents.map((item) => (
-            <a key={item.id} href={`/incidents/${item.id}`} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 hover:border-cyan-400">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold">#{item.id} {item.title}</h2>
-                  <p className="text-sm text-slate-400">{item.service_name} · {item.severity}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-sm font-bold ${item.status === "resolved" ? "bg-emerald-900 text-emerald-200" : "bg-amber-900 text-amber-200"}`}>
-                  {item.status}
-                </span>
-              </div>
-            </a>
+      <Card delay={0.06} className="mt-6">
+        <SectionTitle eyebrow="Chaos testing" title="Fault injection" />
+        <p className="-mt-2 mb-4 text-sm text-slate-400">
+          Inject a realistic fault into a monitored service, then open the matching scenario
+          to drive the agentic workflow with live signals.
+        </p>
+        <div className="flex flex-wrap gap-2.5">
+          {SERVICES.map((service) => (
+            <Button key={service} variant="ghost" onClick={() => injectFault(service)}>
+              <span className="inline-flex items-center gap-2">
+                <Zap className="h-4 w-4 text-cyan-300" /> {service}
+              </span>
+            </Button>
           ))}
-          {incidents.length === 0 && <p className="text-slate-400">No incidents yet. Create scenarios from the main dashboard.</p>}
-        </section>
+        </div>
+        {message && (
+          <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-cyan-200">
+            {message}
+          </div>
+        )}
+      </Card>
+
+      <div className="mt-6 grid gap-3">
+        {incidents.length === 0 && (
+          <Card delay={0.1}>
+            <EmptyState>No incidents yet. Open scenarios from the command center.</EmptyState>
+          </Card>
+        )}
+        {incidents.map((item, i) => (
+          <Link key={item.id} href={`/incidents/${item.id}`}>
+            <Card delay={Math.min(i * 0.03, 0.2)} interactive className="p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-bold text-white">
+                    #{item.id} {item.title}
+                  </h2>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                    <span className="font-mono text-cyan-300">{item.service_name}</span>
+                    <Badge tone={severityTone(item.severity)}>{item.severity}</Badge>
+                    <span>{timeAgo(item.created_at)}</span>
+                  </div>
+                </div>
+                <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+              </div>
+            </Card>
+          </Link>
+        ))}
       </div>
     </main>
   );

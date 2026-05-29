@@ -11,4 +11,12 @@ AI_CONFIDENCE_SCORE = Gauge("aegisops_ai_confidence_score", "Latest AI RCA confi
 TOOL_FAILURES = Counter("aegisops_tool_failures_total", "Tool failures by tool name", ["tool"])
 EVAL_SCORE = Gauge("aegisops_latest_eval_score", "Latest benchmark evaluation score")
 INFEROPS_CALLS = Counter("aegisops_inferops_calls_total", "Total InferOps AI gateway calls", ["status"])
-DEMO_SERVICE_FAILURES = Counter("aegisops_demo_service_failures_total", "Failures injected into demo services", ["service", "mode"])
+SERVICE_FAULTS = Counter("aegisops_service_faults_total", "Faults injected into monitored services", ["service", "mode"])
+
+LOKI_QUERIES = Counter("aegisops_loki_queries_total", "Loki log-search queries", ["status"])
+K8S_ADAPTER_CALLS = Counter("aegisops_k8s_adapter_calls_total", "Kubernetes adapter calls", ["status"])
+NOTIFICATIONS_SENT = Counter("aegisops_notifications_sent_total", "Notifications sent or simulated", ["channel", "status"])
+RAG_QUERIES = Counter("aegisops_rag_queries_total", "RAG memory queries", ["source"])
+MODEL_LATENCY = Histogram("aegisops_model_latency_seconds", "InferOps/model call latency", ["provider", "model"])
+MODEL_COST = Counter("aegisops_model_cost_usd_total", "Accumulated model cost in USD", ["provider", "model"])
+MODEL_TOKENS = Counter("aegisops_model_tokens_total", "Model tokens by type", ["provider", "model", "token_type"])

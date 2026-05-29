@@ -1,112 +1,155 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { ArrowLeft, Boxes, FileText } from "lucide-react";
+import { api, type IncidentDetail } from "@/lib/api";
+import { pct, severityTone, statusTone, timeAgo } from "@/lib/format";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  JsonBlock,
+  Metric,
+  SectionTitle,
+} from "@/components/ui";
 
-type Detail = any;
-
-export default function IncidentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function IncidentDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detail, setDetail] = useState<IncidentDetail | null>(null);
   const [message, setMessage] = useState("");
 
   async function load() {
-    const response = await fetch(`${backendUrl}/incidents/${id}`);
-    setDetail(await response.json());
+    setDetail(await api<IncidentDetail>(`/incidents/${id}`));
   }
 
   async function generatePostmortem() {
-    const response = await fetch(`${backendUrl}/incidents/${id}/postmortem`, { method: "POST" });
-    const data = await response.json();
-    setMessage(response.ok ? "Postmortem generated." : data.detail);
-    await load();
+    try {
+      await api(`/incidents/${id}/postmortem`, { method: "POST" });
+      setMessage("Postmortem generated.");
+      await load();
+    } catch (err: any) {
+      setMessage(err.message);
+    }
   }
 
   useEffect(() => {
-    load();
+    load().catch(() => setMessage("Backend unreachable."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (!detail?.incident) {
-    return <main className="min-h-screen bg-slate-950 p-8 text-slate-100">Loading...</main>;
+    return (
+      <main className="mx-auto max-w-6xl px-5 pt-10 text-slate-400 md:px-8">Loading…</main>
+    );
   }
 
   const incident = detail.incident;
 
   return (
-    <main className="min-h-screen bg-slate-950 p-8 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex gap-4 text-cyan-300">
-          <a href="/">← Dashboard</a>
-          <a href="/incidents">Incident Center</a>
-          <a href={`/postmortems/${incident.id}`}>Postmortem page</a>
-        </div>
-
-        <section className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Incident Detail</p>
-          <h1 className="mt-3 text-4xl font-black">#{incident.id} {incident.title}</h1>
-          <p className="mt-2 text-slate-300">{incident.description}</p>
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric label="Service" value={incident.service_name} />
-            <Metric label="Severity" value={incident.severity} />
-            <Metric label="Status" value={incident.status} />
-            <Metric label="Scenario" value={incident.scenario_key} />
-          </div>
-          <button onClick={generatePostmortem} className="mt-5 rounded-xl bg-cyan-500 px-5 py-3 font-bold text-slate-950">Generate Postmortem</button>
-          {message && <p className="mt-3 text-emerald-300">{message}</p>}
-        </section>
-
-        <Card title="Root-Cause Analysis">
-          {detail.rca ? (
-            <>
-              <p className="text-2xl font-black text-cyan-300">{Math.round(detail.rca.confidence_score * 100)}% confidence</p>
-              <p className="mt-3 leading-7 text-slate-200">{detail.rca.suspected_root_cause}</p>
-            </>
-          ) : <p className="text-slate-400">No RCA generated yet.</p>}
-        </Card>
-
-        <Card title="Evidence Records">
-          <div className="grid gap-3">
-            {detail.evidence.map((item: any, index: number) => (
-              <div key={index} className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <p className="font-bold text-cyan-300">{item.source}</p>
-                <p className="mt-1 text-slate-200">{item.summary}</p>
-                <pre className="mt-3 overflow-auto rounded-lg bg-black p-3 text-xs text-slate-300">{JSON.stringify(item.details, null, 2)}</pre>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card title="Agent Traces">
-          <div className="grid gap-3">
-            {detail.agent_traces.map((item: any, index: number) => (
-              <div key={index} className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <div className="flex justify-between gap-4"><b>{item.agent_name}</b><span>{Math.round(item.latency_ms)} ms</span></div>
-                <p className="mt-2 text-slate-300">{item.output_summary}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card title="Timeline">
-          <ol className="space-y-3">
-            {detail.timeline.map((item: any, index: number) => (
-              <li key={index} className="rounded-xl border border-slate-700 bg-slate-950 p-4">
-                <b>{item.event_type}</b> <span className="text-slate-400">by {item.actor}</span>
-                <p>{item.message}</p>
-              </li>
-            ))}
-          </ol>
-        </Card>
+    <main className="mx-auto max-w-6xl space-y-6 px-5 pb-20 pt-8 md:px-8">
+      <div className="flex flex-wrap gap-4 text-sm text-cyan-300">
+        <Link href="/" className="inline-flex items-center gap-1.5 hover:text-cyan-200">
+          <ArrowLeft className="h-4 w-4" /> Command center
+        </Link>
+        <Link href="/incidents" className="hover:text-cyan-200">Incident center</Link>
+        <Link href={`/postmortems/${incident.id}`} className="hover:text-cyan-200">Postmortem</Link>
       </div>
+
+      <Card delay={0}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">
+          Incident detail
+        </p>
+        <h1 className="mt-2 text-3xl font-black text-white md:text-4xl">
+          #{incident.id} {incident.title}
+        </h1>
+        <p className="mt-2 text-slate-300">{incident.description}</p>
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Metric label="Service" value={<span className="font-mono text-base text-cyan-300">{incident.service_name}</span>} />
+          <Metric label="Severity" value={<Badge tone={severityTone(incident.severity)}>{incident.severity}</Badge>} />
+          <Metric label="Status" value={<Badge tone={statusTone(incident.status)}>{incident.status}</Badge>} />
+          <Metric label="Scenario" value={<span className="font-mono text-sm text-slate-200">{incident.scenario_key}</span>} />
+        </div>
+        <div className="mt-5">
+          <Button onClick={generatePostmortem}>
+            <span className="inline-flex items-center gap-2"><FileText className="h-4 w-4" /> Generate postmortem</span>
+          </Button>
+          {message && <span className="ml-3 text-sm text-emerald-300">{message}</span>}
+        </div>
+      </Card>
+
+      <Card delay={0.05}>
+        <SectionTitle eyebrow="Synthesis" title="Root-cause analysis" />
+        {detail.rca ? (
+          <div>
+            <p className="text-2xl font-black text-cyan-300">{pct(detail.rca.confidence_score)} confidence</p>
+            <p className="mt-3 text-sm leading-7 text-slate-200">{detail.rca.suspected_root_cause}</p>
+          </div>
+        ) : (
+          <EmptyState>No RCA generated yet.</EmptyState>
+        )}
+      </Card>
+
+      <Card delay={0.08}>
+        <SectionTitle eyebrow="Signals" title="Evidence records" />
+        {detail.evidence.length === 0 ? (
+          <EmptyState>No evidence recorded.</EmptyState>
+        ) : (
+          <div className="grid gap-3">
+            {detail.evidence.map((item, index) => (
+              <div key={index} className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="font-mono text-sm font-bold text-cyan-300">{item.source}</p>
+                <p className="mt-1 text-sm text-slate-200">{item.summary}</p>
+                <JsonBlock data={item.details} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card delay={0.11}>
+        <SectionTitle eyebrow="Execution" title="Agent traces" />
+        {detail.agent_traces.length === 0 ? (
+          <EmptyState>No agent traces recorded.</EmptyState>
+        ) : (
+          <div className="grid gap-3">
+            {detail.agent_traces.map((item, index) => (
+              <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 font-semibold text-white">
+                    <Boxes className="h-4 w-4 text-cyan-300" /> {item.agent_name}
+                  </span>
+                  <span className="text-xs text-slate-400">{Math.round(item.latency_ms)} ms</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-300">{item.output_summary}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card delay={0.14}>
+        <SectionTitle eyebrow="History" title="Timeline" />
+        <ol className="relative space-y-3 border-l border-white/10 pl-5">
+          {detail.timeline.map((item, index) => (
+            <li key={index} className="relative">
+              <span className="absolute -left-[1.42rem] top-1.5 h-2.5 w-2.5 rounded-full bg-cyan-400 ring-4 ring-ink-950" />
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <p className="text-sm font-semibold text-white">
+                  {item.event_type} <span className="text-slate-400">by {item.actor}</span>
+                </p>
+                <p className="text-sm text-slate-300">{item.message}</p>
+                <p className="mt-1 text-xs text-slate-500">{timeAgo(item.created_at)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Card>
     </main>
   );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 font-bold">{value}</p></div>;
-}
-
-function Card({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6"><h2 className="mb-4 text-2xl font-black">{title}</h2>{children}</section>;
 }

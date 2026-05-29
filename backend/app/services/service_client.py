@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import httpx
-from app.config import demo_service_url_map
+from app.config import service_registry_map
 from app.metrics import TOOL_FAILURES
 
 
-class DemoServiceClient:
+class ServiceClient:
+    """HTTP client for the monitored services the evidence agents read from."""
+
     def __init__(self) -> None:
-        self.urls = demo_service_url_map()
+        self.urls = service_registry_map()
 
     def get(self, service_name: str, path: str) -> dict | None:
         base = self.urls.get(service_name)
@@ -18,7 +20,7 @@ class DemoServiceClient:
             response.raise_for_status()
             return response.json()
         except Exception:
-            TOOL_FAILURES.labels(tool=f"demo_service:{service_name}{path}").inc()
+            TOOL_FAILURES.labels(tool=f"service:{service_name}{path}").inc()
             return None
 
     def post(self, service_name: str, path: str, payload: dict | None = None) -> dict | None:
@@ -30,5 +32,5 @@ class DemoServiceClient:
             response.raise_for_status()
             return response.json()
         except Exception:
-            TOOL_FAILURES.labels(tool=f"demo_service:{service_name}{path}").inc()
+            TOOL_FAILURES.labels(tool=f"service:{service_name}{path}").inc()
             return None

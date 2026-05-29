@@ -6,13 +6,13 @@ from starlette.responses import Response
 SERVICE_NAME = os.getenv("SERVICE_NAME", "payment-service")
 SCENARIO_KEY = os.getenv("SCENARIO_KEY", "payment_pool_regression")
 
-REQUESTS = Counter("demo_service_requests_total", "Requests handled by demo service", ["service"])
-ERRORS = Counter("demo_service_errors_total", "Synthetic errors emitted by demo service", ["service", "mode"])
-LATENCY = Gauge("demo_service_p95_latency_ms", "Synthetic p95 latency", ["service"])
-MEMORY = Gauge("demo_service_memory_pct", "Synthetic memory saturation", ["service"])
-ERROR_RATE = Gauge("demo_service_error_rate_pct", "Synthetic error rate", ["service"])
+REQUESTS = Counter("service_requests_total", "Requests handled by the service", ["service"])
+ERRORS = Counter("service_errors_total", "Errors emitted by the service", ["service", "mode"])
+LATENCY = Gauge("service_p95_latency_ms", "Service p95 latency", ["service"])
+MEMORY = Gauge("service_memory_pct", "Service memory saturation", ["service"])
+ERROR_RATE = Gauge("service_error_rate_pct", "Service error rate", ["service"])
 
-app = FastAPI(title=f"{SERVICE_NAME} demo service")
+app = FastAPI(title=SERVICE_NAME)
 
 STATE = {
     "mode": "healthy",

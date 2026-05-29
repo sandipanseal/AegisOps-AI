@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: aegisops-demo-service:latest
+          image: aegisops-service:latest
           ports:
             - containerPort: 8100
           env:
@@ -48,7 +48,7 @@ spec:
     spec:
       containers:
         - name: checkout-service
-          image: aegisops-demo-service:latest
+          image: aegisops-service:latest
           ports:
             - containerPort: 8100
           env:
@@ -82,7 +82,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: aegisops-demo-service:latest
+          image: aegisops-service:latest
           ports:
             - containerPort: 8100
           env:
@@ -116,7 +116,7 @@ spec:
     spec:
       containers:
         - name: recommendation-service
-          image: aegisops-demo-service:latest
+          image: aegisops-service:latest
           ports:
             - containerPort: 8100
           env:

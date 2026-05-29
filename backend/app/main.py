@@ -6,7 +6,7 @@ from starlette.responses import Response
 from sqlalchemy.orm import Session
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-from app.database import SessionLocal, init_db, Incident, RCAReport, RunbookExecution, EvidenceRecord, AgentTrace, TimelineEvent, Postmortem, EvaluationResult
+from app.database import SessionLocal, init_db, Incident, RCAReport, RunbookExecution, EvidenceRecord, AgentTrace, TimelineEvent, Postmortem, EvaluationResult, NotificationEvent, ModelInvocation
 from app.schemas import IncidentCreate, RunbookApproval, EvalRequest
 from app.services.incident_service import IncidentService
 from app.services.runbook_executor import RunbookExecutor
@@ -15,7 +15,7 @@ from app.services.postmortem_service import PostmortemService
 from app.services.scenario_service import list_scenarios, get_scenario
 from app.metrics import RUNBOOK_REJECTIONS, INCIDENT_STATUS
 
-app = FastAPI(title="AegisOps AI", version="0.3.0")
+app = FastAPI(title="AegisOps AI", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 FastAPIInstrumentor.instrument_app(app)
 
@@ -49,7 +49,7 @@ def _incident_dict(item: Incident) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "service": "aegisops-ai-backend", "version": "0.3.0"}
+    return {"status": "healthy", "service": "aegisops-ai-backend", "version": "1.0.0"}
 
 
 @app.get("/metrics")
@@ -76,6 +76,9 @@ def dashboard_summary(db: Session = Depends(get_db)):
         "agent_traces": db.query(AgentTrace).count(),
         "latest_ai_confidence": latest_rca.confidence_score if latest_rca else None,
         "latest_eval_score": latest_eval.score if latest_eval else None,
+        "model_invocations": db.query(ModelInvocation).count(),
+        "model_cost_usd": round(sum(x.cost_usd or 0 for x in db.query(ModelInvocation).all()), 6),
+        "notifications": db.query(NotificationEvent).count(),
     }
 
 
@@ -188,33 +191,105 @@ def run_benchmark(db: Session = Depends(get_db)):
 def list_evals(db: Session = Depends(get_db)):
     return [{"name": e.name, "total_cases": e.total_cases, "passed_cases": e.passed_cases, "score": e.score, "created_at": e.created_at.isoformat(), "details": json.loads(e.details)} for e in db.query(EvaluationResult).order_by(EvaluationResult.id.desc()).all()]
 
-@app.post("/demo-services/{service_name}/simulate-failure")
-def simulate_demo_service_failure(service_name: str):
-    from app.services.demo_service_client import DemoServiceClient
-    from app.metrics import DEMO_SERVICE_FAILURES
+@app.post("/services/{service_name}/simulate-failure")
+def simulate_service_failure(service_name: str):
+    from app.services.service_client import ServiceClient
+    from app.metrics import SERVICE_FAULTS
 
-    result = DemoServiceClient().post(service_name, "/simulate-failure")
+    client = ServiceClient()
+    result = client.post(service_name, "/simulate-failure")
     if not result:
-        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
-    DEMO_SERVICE_FAILURES.labels(service=service_name, mode=result.get("mode", "unknown")).inc()
+        raise HTTPException(status_code=502, detail=f"Service {service_name} did not respond")
+    SERVICE_FAULTS.labels(service=service_name, mode=result.get("mode", "unknown")).inc()
+    logs_payload = client.get(service_name, "/logs") or {"logs": []}
+    from app.services.loki_client import LokiClient
+    loki_result = LokiClient().push_logs(service_name, logs_payload.get("logs", []))
+    return {**result, "loki": loki_result}
+
+
+@app.post("/services/{service_name}/reset")
+def reset_service(service_name: str):
+    from app.services.service_client import ServiceClient
+
+    result = ServiceClient().post(service_name, "/reset")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Service {service_name} did not respond")
     return result
 
 
-@app.post("/demo-services/{service_name}/reset")
-def reset_demo_service(service_name: str):
-    from app.services.demo_service_client import DemoServiceClient
+@app.get("/services/{service_name}/signals")
+def service_signals(service_name: str):
+    from app.services.service_client import ServiceClient
 
-    result = DemoServiceClient().post(service_name, "/reset")
+    result = ServiceClient().get(service_name, "/signals")
     if not result:
-        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
+        raise HTTPException(status_code=502, detail=f"Service {service_name} did not respond")
     return result
 
 
-@app.get("/demo-services/{service_name}/signals")
-def demo_service_signals(service_name: str):
-    from app.services.demo_service_client import DemoServiceClient
+@app.get("/logs/search")
+def search_loki_logs(service_name: str, minutes: int = 60):
+    from app.services.loki_client import LokiClient
+    return {"service_name": service_name, "logs": LokiClient().search_logs(service_name, minutes=minutes)}
 
-    result = DemoServiceClient().get(service_name, "/signals")
-    if not result:
-        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
+
+@app.get("/kubernetes/{service_name}/status")
+def kubernetes_status(service_name: str, namespace: str = "default"):
+    from app.services.kubernetes_adapter import KubernetesAdapter
+    result = KubernetesAdapter().service_status(service_name, namespace=namespace)
+    if result is None:
+        return {"status": "disabled", "message": "Set ENABLE_K8S_ADAPTER=true and provide kubeconfig/in-cluster access to use the Kind/Kubernetes adapter."}
     return result
+
+
+@app.post("/notifications/test")
+def test_notifications(db: Session = Depends(get_db)):
+    from app.services.notification_service import NotificationService
+    probe = type("IncidentLike", (), {"id": None, "title": "Manual notification test", "service_name": "aegisops-ai", "severity": "high"})()
+    results = NotificationService().notify_incident(db, probe, "🔔 AegisOps AI notification integration test")
+    db.commit()
+    return {"results": results}
+
+
+@app.post("/rag/reindex")
+def rag_reindex(db: Session = Depends(get_db)):
+    from app.services.rag_service import RagService
+    return RagService().reindex(db)
+
+
+@app.get("/rag/search")
+def rag_search(query: str, limit: int = 5, db: Session = Depends(get_db)):
+    from app.services.rag_service import RagService
+    return {"query": query, "results": RagService().search(db, query, limit=limit)}
+
+
+@app.get("/model-usage")
+def model_usage(db: Session = Depends(get_db)):
+    rows = db.query(ModelInvocation).order_by(ModelInvocation.id.desc()).all()
+    total_cost = sum(row.cost_usd or 0 for row in rows)
+    total_tokens = sum(row.total_tokens or 0 for row in rows)
+    return {
+        "total_calls": len(rows),
+        "total_cost_usd": round(total_cost, 6),
+        "total_tokens": total_tokens,
+        "calls": [
+            {
+                "incident_id": r.incident_id,
+                "provider": r.provider,
+                "model": r.model,
+                "latency_ms": r.latency_ms,
+                "prompt_tokens": r.prompt_tokens,
+                "completion_tokens": r.completion_tokens,
+                "total_tokens": r.total_tokens,
+                "cost_usd": r.cost_usd,
+                "status": r.status,
+                "created_at": r.created_at.isoformat(),
+            } for r in rows
+        ],
+    }
+
+
+@app.get("/notifications")
+def list_notifications(db: Session = Depends(get_db)):
+    rows = db.query(NotificationEvent).order_by(NotificationEvent.id.desc()).all()
+    return [{"incident_id": r.incident_id, "channel": r.channel, "status": r.status, "payload": json.loads(r.payload), "response": json.loads(r.response), "created_at": r.created_at.isoformat()} for r in rows]

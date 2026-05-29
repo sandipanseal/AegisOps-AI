@@ -8,17 +8,19 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/aegisops
       PROMETHEUS_URL: http://prometheus:9090
-      REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       INFEROPS_AI_URL: ${INFEROPS_AI_URL:-}
       INFEROPS_API_KEY: ${INFEROPS_API_KEY:-}
-      DEMO_SERVICE_URLS: payment-service=http://payment-service:8100,checkout-service=http://checkout-service:8100,auth-service=http://auth-service:8100,recommendation-service=http://recommendation-service:8100
+      LOKI_URL: http://loki:3100
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+      ENABLE_K8S_ADAPTER: ${ENABLE_K8S_ADAPTER:-false}
+      KUBECONFIG_PATH: ${KUBECONFIG_PATH:-}
+      SERVICE_REGISTRY: payment-service=http://payment-service:8100,checkout-service=http://checkout-service:8100,auth-service=http://auth-service:8100,recommendation-service=http://recommendation-service:8100
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
       payment-service:
         condition: service_started
       checkout-service:
@@ -26,6 +28,8 @@ services:
       auth-service:
         condition: service_started
       recommendation-service:
+        condition: service_started
+      loki:
         condition: service_started
 
   frontend:
@@ -41,7 +45,7 @@ services:
 
   payment-service:
     build:
-      context: ../demo-services
+      context: ../services
     container_name: aegisops-payment-service
     environment:
       SERVICE_NAME: payment-service
@@ -50,7 +54,7 @@ services:
 
   checkout-service:
     build:
-      context: ../demo-services
+      context: ../services
     container_name: aegisops-checkout-service
     environment:
       SERVICE_NAME: checkout-service
@@ -59,7 +63,7 @@ services:
 
   auth-service:
     build:
-      context: ../demo-services
+      context: ../services
     container_name: aegisops-auth-service
     environment:
       SERVICE_NAME: auth-service
@@ -68,7 +72,7 @@ services:
 
   recommendation-service:
     build:
-      context: ../demo-services
+      context: ../services
     container_name: aegisops-recommendation-service
     environment:
       SERVICE_NAME: recommendation-service
@@ -92,11 +96,14 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7
-    container_name: aegisops-redis
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: aegisops-loki
+    command: -config.file=/etc/loki/loki-config.yml
     ports:
-      - "6379:6379"
+      - "3100:3100"
+    volumes:
+      - ../observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
 
   prometheus:
     image: prom/prometheus:v2.54.1
@@ -111,6 +118,7 @@ services:
       - checkout-service
       - auth-service
       - recommendation-service
+      - loki
 
   grafana:
     image: grafana/grafana:11.2.2

@@ -6,10 +6,15 @@ scrape_configs:
     static_configs:
       - targets: ["backend:8000"]
 
-  - job_name: "aegisops-demo-services"
+  - job_name: "aegisops-services"
     static_configs:
       - targets:
           - "payment-service:8100"
           - "checkout-service:8100"
           - "auth-service:8100"
           - "recommendation-service:8100"
+
+
+  - job_name: "aegisops-loki"
+    static_configs:
+      - targets: ["loki:3100"]
