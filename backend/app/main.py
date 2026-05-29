@@ -15,7 +15,7 @@ from app.services.postmortem_service import PostmortemService
 from app.services.scenario_service import list_scenarios, get_scenario
 from app.metrics import RUNBOOK_REJECTIONS, INCIDENT_STATUS
 
-app = FastAPI(title="AegisOps AI", version="0.2.0")
+app = FastAPI(title="AegisOps AI", version="0.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 FastAPIInstrumentor.instrument_app(app)
 
@@ -49,7 +49,7 @@ def _incident_dict(item: Incident) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "service": "aegisops-ai-backend", "version": "0.2.0"}
+    return {"status": "healthy", "service": "aegisops-ai-backend", "version": "0.3.0"}
 
 
 @app.get("/metrics")
@@ -187,3 +187,34 @@ def run_benchmark(db: Session = Depends(get_db)):
 @app.get("/evals")
 def list_evals(db: Session = Depends(get_db)):
     return [{"name": e.name, "total_cases": e.total_cases, "passed_cases": e.passed_cases, "score": e.score, "created_at": e.created_at.isoformat(), "details": json.loads(e.details)} for e in db.query(EvaluationResult).order_by(EvaluationResult.id.desc()).all()]
+
+@app.post("/demo-services/{service_name}/simulate-failure")
+def simulate_demo_service_failure(service_name: str):
+    from app.services.demo_service_client import DemoServiceClient
+    from app.metrics import DEMO_SERVICE_FAILURES
+
+    result = DemoServiceClient().post(service_name, "/simulate-failure")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
+    DEMO_SERVICE_FAILURES.labels(service=service_name, mode=result.get("mode", "unknown")).inc()
+    return result
+
+
+@app.post("/demo-services/{service_name}/reset")
+def reset_demo_service(service_name: str):
+    from app.services.demo_service_client import DemoServiceClient
+
+    result = DemoServiceClient().post(service_name, "/reset")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
+    return result
+
+
+@app.get("/demo-services/{service_name}/signals")
+def demo_service_signals(service_name: str):
+    from app.services.demo_service_client import DemoServiceClient
+
+    result = DemoServiceClient().get(service_name, "/signals")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Demo service {service_name} did not respond")
+    return result

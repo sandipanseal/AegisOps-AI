@@ -2,7 +2,7 @@
   "uid": "aegisops-overview",
   "title": "AegisOps AI Overview",
   "schemaVersion": 38,
-  "version": 2,
+  "version": 4,
   "refresh": "5s",
   "panels": [
     {
@@ -36,7 +36,7 @@
       },
       "targets": [
         {
-          "expr": "aegisops_rca_requests_total",
+          "expr": "sum(aegisops_rca_requests_total)",
           "refId": "A"
         }
       ],
@@ -197,6 +197,86 @@
       "targets": [
         {
           "expr": "sum by (runbook) (aegisops_runbook_executions_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Demo Service p95 Latency",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "demo_service_p95_latency_ms",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Demo Service Error Rate",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "demo_service_error_rate_pct",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "InferOps Gateway Calls",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(aegisops_inferops_calls_total)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Demo Failures by Service",
+      "gridPos": {
+        "x": 8,
+        "y": 26,
+        "w": 16,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum by (service, mode) (aegisops_demo_service_failures_total)",
           "refId": "A"
         }
       ],

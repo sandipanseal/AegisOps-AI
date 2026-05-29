@@ -144,14 +144,16 @@ export default function Home() {
         <header className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-7 shadow-2xl">
           <p className="text-sm font-semibold tracking-widest text-cyan-300">AGENTIC AI INCIDENT COMMANDER</p>
           <h1 className="mt-3 text-4xl md:text-6xl font-black">AegisOps AI</h1>
-          <p className="mt-4 max-w-4xl text-slate-300">Portfolio-grade GenAI SRE platform for incident intake, multi-agent evidence collection, RCA, safety-gated runbooks, postmortems, evals and observability.</p>
-          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto_auto_auto]">
+          <p className="mt-4 max-w-4xl text-slate-300"> GenAI / SRE platform for incident intake, multi-agent evidence collection, RCA, safety-gated runbooks, postmortems, evals and observability.</p>
+          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto_auto_auto_auto_auto]">
             <select value={selectedScenario} onChange={(e) => setSelectedScenario(e.target.value)} className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3">
               {scenarios.map((scenario) => <option key={scenario.key} value={scenario.key}>{scenario.title} · {scenario.service_name}</option>)}
             </select>
             <Button onClick={createScenarioIncident}>Create Scenario</Button>
             <Button onClick={analyzeIncident} disabled={!activeIncident || loading}>Run Agentic RCA</Button>
             <Button onClick={runBenchmark}>Run Eval Benchmark</Button>
+            <a href="/incidents" className="rounded-2xl border border-slate-700 px-5 py-3 text-center font-bold hover:bg-slate-800">Incident Center</a>
+            <a href="/evals" className="rounded-2xl border border-slate-700 px-5 py-3 text-center font-bold hover:bg-slate-800">Evals</a>
             <a href="http://localhost:3001/d/aegisops-overview/aegisops-ai-overview?orgId=1&refresh=5s" target="_blank" className="rounded-2xl border border-slate-700 px-5 py-3 text-center font-bold hover:bg-slate-800">Grafana</a>
           </div>
         </header>

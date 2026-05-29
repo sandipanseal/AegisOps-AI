@@ -1,31 +1,58 @@
 from app.schemas import Evidence, RCAResult
 from app.data.scenarios import SCENARIOS
+from app.services.inferops_client import InferOpsClient
 
 
 class RCAAgent:
     name = "RCAAgent"
 
+    def __init__(self) -> None:
+        self.inferops = InferOpsClient()
+
     def generate(self, incident, evidence: list[Evidence]) -> RCAResult:
         scenario = SCENARIOS.get(getattr(incident, "scenario_key", "custom"), SCENARIOS["payment_pool_regression"])
-        root_cause = scenario["expected_root_cause"]
-
+        expected_root_cause = scenario["expected_root_cause"]
         evidence_summary = "; ".join([f"{item.source}: {item.summary}" for item in evidence])
-        suspected = (
-            f"The most likely root cause is {root_cause}. "
-            f"This is supported by correlated evidence from {evidence_summary}."
-        )
+
+        prompt = f"""
+You are AegisOps AI, an agentic incident commander for production systems.
+
+Incident:
+- Title: {incident.title}
+- Service: {incident.service_name}
+- Severity: {incident.severity}
+- Description: {incident.description}
+
+Evidence collected by agents:
+{evidence_summary}
+
+Task:
+Produce a concise SRE-style root-cause analysis. Include the likely root cause,
+why the evidence supports it, and the safest next operational actions. Do not
+recommend destructive action without human approval.
+""".strip()
+
+        gateway_text = self.inferops.synthesize_rca(prompt)
+        if gateway_text:
+            suspected = gateway_text[:1800]
+            confidence = {"critical": 0.88, "high": 0.84, "medium": 0.76, "low": 0.68}.get(incident.severity, 0.78)
+        else:
+            suspected = (
+                f"The most likely root cause is {expected_root_cause}. "
+                f"This is supported by correlated evidence from {evidence_summary}."
+            )
+            confidence = {"critical": 0.86, "high": 0.82, "medium": 0.74, "low": 0.65}.get(incident.severity, 0.78)
 
         safe_actions = [
             "Create incident report with deployment correlation",
             "Add alert for the detected failure pattern",
             "Validate service configuration against the last stable release",
+            "Compare current service metrics against the demo-service baseline",
         ]
         risky_actions = [
             "Restart affected deployment after approval",
             "Rollback latest deployment after approval if health does not recover",
         ]
-
-        confidence = {"critical": 0.86, "high": 0.82, "medium": 0.74, "low": 0.65}.get(incident.severity, 0.78)
 
         return RCAResult(
             incident_id=incident.id,

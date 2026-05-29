@@ -1,54 +1,85 @@
-# AegisOps AI - Agentic AI Incident Commander for Production Systems
+# AegisOps AI — Agentic AI Incident Commander for Production Systems
 
-AegisOps AI is a portfolio-grade GenAI/SRE project that demonstrates how agentic AI can support production incident response. It performs incident intake, multi-agent evidence collection, root-cause analysis, safety-gated runbook execution, postmortem generation, RCA evaluation and observability.
+AegisOps AI is a portfolio-grade GenAI/SRE platform for production incident response. It turns alerts into multi-agent evidence collection, root-cause analysis, approval-gated runbooks, postmortems, RCA evals, and full Prometheus/Grafana observability.
 
-## What is upgraded in this version
+This v3 version is designed to complement an LLM gateway such as **InferOps AI**:
 
-- Multi-agent workflow: log, metrics, Kubernetes, deployment-history and RCA agents
-- Scenario library with multiple realistic production incidents
-- Incident detail API with evidence, agent traces, runbooks, timeline and postmortem
-- Human approval and idempotency for risky runbook actions
-- AI-generated postmortem in Markdown
-- RCA benchmark evaluation endpoint
-- Prometheus metrics for incidents, RCA latency, agent latency, confidence, eval score and runbooks
-- Grafana dashboard provisioning
-- Cleaner Next.js UI with tabs for overview, evidence, agents, timeline, postmortem and evals
+```text
+AegisOps AI = agentic production application
+InferOps AI = LLM routing / safety / RAG / observability gateway
+```
+
+## What makes this project strong
+
+- Multi-agent incident investigation workflow
+- Live demo microservices with `/health`, `/logs`, `/signals`, `/metrics`, `/simulate-failure`
+- RCA agent with optional InferOps AI gateway integration
+- Evidence storage, agent traces, incident timeline, and runbook history
+- Human approval before risky runbooks
+- AI-generated postmortems
+- RCA benchmark evaluation
+- Prometheus + Grafana dashboard
+- Dedicated pages for incidents, incident detail, postmortems, and evals
+- Docker Compose end-to-end deployment
 
 ## Architecture
 
-```text
-Frontend Next.js
-   -> FastAPI backend
-      -> Incident service
-      -> Agentic RCA workflow
-      -> Evidence collectors
-      -> Runbook executor
-      -> Postmortem generator
-      -> Evaluation service
-      -> PostgreSQL
-      -> Prometheus / Grafana
+```mermaid
+flowchart TD
+  UI[Next.js Frontend] --> API[FastAPI AegisOps Backend]
+  API --> DB[(PostgreSQL)]
+  API --> Redis[(Redis)]
+  API --> P[Prometheus]
+  API --> DS[Demo Microservices]
+  API --> INF[Optional InferOps AI Gateway]
+  INF --> LLM[OpenAI / local LLM / routed model]
+
+  DS --> Payment[payment-service]
+  DS --> Checkout[checkout-service]
+  DS --> Auth[auth-service]
+  DS --> Reco[recommendation-service]
+
+  API --> Agents[Agentic RCA Workflow]
+  Agents --> LogAgent[Log Analysis Agent]
+  Agents --> MetricsAgent[Metrics Analysis Agent]
+  Agents --> K8sAgent[Kubernetes State Agent]
+  Agents --> DeployAgent[Deployment History Agent]
+  Agents --> RCAAgent[RCA Agent]
+
+  P --> Grafana[Grafana Dashboard]
 ```
+
+## Tech stack
+
+| Layer | Tools |
+|---|---|
+| Backend | FastAPI, SQLAlchemy, PostgreSQL |
+| Frontend | Next.js, TypeScript, Tailwind |
+| Agents | Python agent classes, tool adapters, optional InferOps AI gateway |
+| Demo services | FastAPI microservices with real Prometheus metrics |
+| Observability | Prometheus, Grafana, OpenTelemetry instrumentation |
+| Deployment | Docker Compose, Kubernetes manifests, GitHub Actions |
 
 ## Run locally
 
-From the repository root:
+From the project root:
 
 ```powershell
-docker compose --env-file .env -f deployment\docker-compose.yml up --build
-```
-
-Or, if you do not need values from the root `.env` file:
-
-```powershell
-docker compose -f deployment\docker-compose.yml up --build
+cd deployment
+docker compose down -v
+docker compose up --build
 ```
 
 Open:
 
-- Frontend: http://localhost:3000
-- Backend Docs: http://localhost:8000/docs
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3001
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API docs | http://localhost:8000/docs |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 |
+| Incident Center | http://localhost:3000/incidents |
+| Eval Center | http://localhost:3000/evals |
 
 Grafana login:
 
@@ -56,111 +87,104 @@ Grafana login:
 admin / admin
 ```
 
-Dashboard:
+## Demo flow
+
+1. Open `http://localhost:3000`.
+2. Select a scenario, for example **Payment API latency spike**.
+3. Click **Create Scenario**.
+4. Click **Run Agentic RCA**.
+5. Review overview, evidence, agents, timeline, postmortem, and eval tabs.
+6. Click **Approve Restart**.
+7. Click **Generate Postmortem**.
+8. Click **Run Eval Benchmark**.
+9. Open Grafana and verify metrics.
+
+## Demo microservice failure injection
+
+Open:
 
 ```text
-AegisOps AI Overview
+http://localhost:3000/incidents
 ```
 
-## Demo workflow
+Use the buttons under **Demo Microservice Failure Injection** to inject synthetic failures into:
 
-1. Select a scenario, for example `Payment API latency spike`.
-2. Click **Create Scenario**.
-3. Click **Run Agentic RCA**.
-4. Review RCA, evidence and agent traces.
-5. Click **Approve Restart** to simulate a safety-gated runbook.
-6. Click **Generate Postmortem**.
-7. Click **Run Eval Benchmark**.
-8. Check Grafana for RCA latency, agent latency, eval score and runbook metrics.
+- payment-service
+- checkout-service
+- auth-service
+- recommendation-service
 
-## API examples
-
-PowerShell uses `curl` as an alias for `Invoke-WebRequest`, so either use `Invoke-RestMethod` or call `curl.exe` explicitly. For multi-line PowerShell commands, use `` ` `` instead of a Bash backslash.
-
-Create scenario incident:
+You can also call the backend directly:
 
 ```powershell
-$incident = Invoke-RestMethod `
-  -Uri "http://localhost:8000/incidents/from-scenario/payment_pool_regression" `
-  -Method Post
-
-$incident
+curl -X POST http://localhost:8000/demo-services/payment-service/simulate-failure
+curl http://localhost:8000/demo-services/payment-service/signals
 ```
 
-Run RCA:
+The evidence agents will read live signals from these demo services when available. If they are unavailable, AegisOps falls back to scenario fixtures.
+
+## Optional: connect to InferOps AI
+
+Create `.env` in the project root or export these variables before running Docker Compose:
+
+```env
+INFEROPS_AI_URL=https://your-live-inferops-url.com
+INFEROPS_API_KEY=optional-token
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+Then run:
 
 ```powershell
-Invoke-RestMethod `
-  -Uri "http://localhost:8000/incidents/$($incident.id)/analyze" `
-  -Method Post
+cd deployment
+docker compose up --build
 ```
 
-Approve runbook:
+AegisOps will call InferOps AI for RCA synthesis. If the gateway is unavailable, the deterministic fallback RCA keeps the project runnable.
 
-```powershell
-$approval = @"
-{
-  "incident_id": $($incident.id),
-  "runbook_name": "restart_service",
-  "approved_by": "portfolio-reviewer",
-  "approved": true
-}
-"@
+## Important API endpoints
 
-Invoke-RestMethod `
-  -Uri "http://localhost:8000/runbooks/approve" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $approval
-```
+| Endpoint | Purpose |
+|---|---|
+| `GET /scenarios` | List incident scenarios |
+| `POST /incidents/from-scenario/{key}` | Create incident from scenario |
+| `POST /incidents/{id}/analyze` | Run agentic RCA |
+| `GET /incidents/{id}` | Incident detail with evidence/traces/timeline |
+| `POST /runbooks/approve` | Approval-gated runbook execution |
+| `POST /incidents/{id}/postmortem` | Generate incident postmortem |
+| `POST /evals/run-benchmark` | Run RCA benchmark |
+| `GET /metrics` | Prometheus metrics |
+| `POST /demo-services/{service}/simulate-failure` | Inject demo failure |
 
-Generate postmortem:
+## Portfolio positioning
 
-```powershell
-Invoke-RestMethod `
-  -Uri "http://localhost:8000/incidents/$($incident.id)/postmortem" `
-  -Method Post
-```
+Use this GitHub subtitle:
 
-Run RCA benchmark:
+> Agentic GenAI SRE platform for production incident triage, evidence collection, root-cause analysis, approval-gated runbooks, postmortems, evals, and observability.
 
-```powershell
-Invoke-RestMethod `
-  -Uri "http://localhost:8000/evals/run-benchmark" `
-  -Method Post
-```
+## Resume bullet
 
-Equivalent `curl.exe` example:
+> Built AegisOps AI, an agentic GenAI incident-command platform using FastAPI, Next.js, PostgreSQL, Docker, Prometheus and Grafana to automate production incident triage, live microservice evidence collection, root-cause analysis, human-approved runbooks, postmortem generation and RCA benchmark evaluation, with optional integration to an InferOps AI LLM gateway.
 
-```powershell
-curl.exe -X POST "http://localhost:8000/runbooks/approve" `
-  -H "Content-Type: application/json" `
-  -d '{"incident_id":1,"runbook_name":"restart_service","approved_by":"portfolio-reviewer","approved":true}'
-```
+## Screenshots to add before publishing
 
-## Troubleshooting
+Add screenshots under `docs/screenshots/`:
 
-If Docker Compose reports `no configuration file provided: not found`, run Compose from the repository root and point it at the deployment file:
+- frontend dashboard
+- incident detail page
+- evidence tab
+- agent traces tab
+- postmortem page
+- Grafana dashboard
+- backend Swagger docs
 
-```powershell
-docker compose -f deployment\docker-compose.yml up --build
-```
+Then reference them from this README.
 
-If PowerShell reports `A parameter cannot be found that matches parameter name 'X'`, it is using PowerShell's `curl` alias instead of real curl. Use `Invoke-RestMethod` from the examples above, or call `curl.exe` explicitly.
+## Roadmap
 
-If a multi-line `curl.exe` command fails with `URL rejected: Bad hostname` or PowerShell errors for `-H` / `-d`, replace Bash line continuations (`\`) with PowerShell backticks:
-
-```powershell
-curl.exe -X POST "http://localhost:8000/runbooks/approve" `
-  -H "Content-Type: application/json" `
-  -d '{"incident_id":1,"runbook_name":"restart_service","approved_by":"portfolio-reviewer","approved":true}'
-```
-
-## Next advanced improvements
-
-- Replace simulated collectors with real Prometheus, Loki, Kubernetes and GitHub/GitLab APIs
-- Route all LLM calls through your deployed InferOps AI gateway
-- Add LangGraph orchestration with retry and conditional routing
-- Add Slack/Teams incident notifications
-- Add RAG over previous postmortems and runbooks
-- Add Kubernetes staging execution mode for real restart/rollback simulation
+- Add Loki for real log search
+- Add Kubernetes API adapter for a local Kind cluster
+- Add Slack/PagerDuty notification integration
+- Add RAG over previous incidents and runbooks
+- Add model cost/latency tracking from InferOps AI
+- Add Terraform deployment for cloud hosting

@@ -12,10 +12,20 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       INFEROPS_AI_URL: ${INFEROPS_AI_URL:-}
+      INFEROPS_API_KEY: ${INFEROPS_API_KEY:-}
+      DEMO_SERVICE_URLS: payment-service=http://payment-service:8100,checkout-service=http://checkout-service:8100,auth-service=http://auth-service:8100,recommendation-service=http://recommendation-service:8100
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      checkout-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      recommendation-service:
         condition: service_started
 
   frontend:
@@ -28,6 +38,42 @@ services:
       NEXT_PUBLIC_BACKEND_URL: http://localhost:8000
     depends_on:
       - backend
+
+  payment-service:
+    build:
+      context: ../demo-services
+    container_name: aegisops-payment-service
+    environment:
+      SERVICE_NAME: payment-service
+    ports:
+      - "8101:8100"
+
+  checkout-service:
+    build:
+      context: ../demo-services
+    container_name: aegisops-checkout-service
+    environment:
+      SERVICE_NAME: checkout-service
+    ports:
+      - "8102:8100"
+
+  auth-service:
+    build:
+      context: ../demo-services
+    container_name: aegisops-auth-service
+    environment:
+      SERVICE_NAME: auth-service
+    ports:
+      - "8103:8100"
+
+  recommendation-service:
+    build:
+      context: ../demo-services
+    container_name: aegisops-recommendation-service
+    environment:
+      SERVICE_NAME: recommendation-service
+    ports:
+      - "8104:8100"
 
   postgres:
     image: postgres:15
@@ -61,6 +107,10 @@ services:
       - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - backend
+      - payment-service
+      - checkout-service
+      - auth-service
+      - recommendation-service
 
   grafana:
     image: grafana/grafana:11.2.2
