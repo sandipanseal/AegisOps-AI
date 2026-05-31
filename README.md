@@ -24,8 +24,25 @@ unavailable, a deterministic fallback keeps the platform fully operational.
 
 ---
 
+## Demo video
+
+A ~5-minute narrated walkthrough recorded against the live stack — the agentic RCA workflow end to end and the Grafana dashboard:
+
+▶️ **[docs/videos/aegisops-demo.mp4](docs/videos/aegisops-demo.mp4)** — Command center →
+open incident → multi-agent RCA → evidence/agents/timeline → safety-gated runbook →
+postmortem → benchmark → incident lifecycle, SLA, confidence explanation, RCA feedback &
+runbook risk → SLA overview → dependency graph & blast radius → canary analysis → eval
+dataset → integrations (Loki, Kubernetes, notifications, RAG, model usage, tool-fault
+simulation, prompt-injection scan) → live Grafana metrics.
+
+> GitHub does not stream repository-hosted video inline — click the link to download/play
+> the MP4, or open it locally from `docs/videos/`.
+
+---
+
 ## Table of contents
 
+- [Demo video](#demo-video)
 - [Why AegisOps AI](#why-aegisops-ai)
 - [Capabilities](#capabilities)
 - [Product tour](#product-tour)
