@@ -15,9 +15,17 @@ class Settings(BaseSettings):
     inferops_api_key: str | None = None
     inferops_timeout_seconds: float = 20.0
 
-    database_url: str = "postgresql://postgres:postgres@postgres:5432/aegisops"
+    # Connection string. Docker Compose / deployment inject the real PostgreSQL
+    # DATABASE_URL (with credentials) via the environment, so no DB credential literal
+    # lives in source. The fallback is a local, credential-free SQLite file for
+    # zero-config local dev.
+    database_url: str = "sqlite:///./aegisops.db"
     prometheus_url: str = "http://prometheus:9090"
     loki_url: str = "http://loki:3100"
+
+    # Browser origins allowed to call the API (CORS). Explicit origins avoid the
+    # permissive "*" wildcard; override per-environment with CORS_ALLOW_ORIGINS.
+    cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Optional notification webhooks. If unset, notification calls are simulated.
     slack_webhook_url: str | None = None
@@ -59,3 +67,8 @@ def service_registry_map() -> dict[str, str]:
         name, url = item.split("=", 1)
         urls[name.strip()] = url.strip().rstrip("/")
     return urls
+
+
+def cors_origins_list() -> list[str]:
+    """Explicit list of browser origins allowed to call the API (no '*' wildcard)."""
+    return [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]

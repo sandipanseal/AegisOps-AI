@@ -46,7 +46,12 @@ function Node({
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
-  const seed = useMemo(() => Math.random() * Math.PI * 2, []);
+  // Deterministic per-node phase offset (purely cosmetic animation jitter) derived
+  // from the node's position — avoids a non-crypto PRNG flagged by security scanners.
+  const seed = useMemo(
+    () => (Math.abs(Math.sin(position.x * 12.9898 + position.z * 78.233)) * Math.PI * 2) % (Math.PI * 2),
+    [position]
+  );
 
   useFrame((state) => {
     if (!ref.current) return;

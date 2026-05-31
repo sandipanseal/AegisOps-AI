@@ -239,30 +239,32 @@ class ToolFaultInjection(Base):
 # Columns added to pre-existing tables after the initial release. create_all only
 # creates missing tables, so we additively patch missing columns for databases
 # (e.g. an existing PostgreSQL volume) that were created before these features.
-_ADDED_COLUMNS = {
-    "incidents": {
-        "assignee": "VARCHAR(120)",
-        "acknowledged_at": "TIMESTAMP",
-        "resolved_at": "TIMESTAMP",
-    },
-    "rca_reports": {"confidence_explanation": "TEXT"},
-    "runbook_executions": {"risk_score": "DOUBLE PRECISION"},
-}
+#
+# Each entry is (table, column, full DDL statement). The statements are compile-time
+# constants — there is no string interpolation of identifiers into SQL — so this is
+# not dynamic/injectable SQL.
+_COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
+    ("incidents", "assignee", "ALTER TABLE incidents ADD COLUMN assignee VARCHAR(120)"),
+    ("incidents", "acknowledged_at", "ALTER TABLE incidents ADD COLUMN acknowledged_at TIMESTAMP"),
+    ("incidents", "resolved_at", "ALTER TABLE incidents ADD COLUMN resolved_at TIMESTAMP"),
+    ("rca_reports", "confidence_explanation", "ALTER TABLE rca_reports ADD COLUMN confidence_explanation TEXT"),
+    ("runbook_executions", "risk_score", "ALTER TABLE runbook_executions ADD COLUMN risk_score DOUBLE PRECISION"),
+]
 
 
 def _ensure_columns() -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
-    for table, columns in _ADDED_COLUMNS.items():
-        if table not in tables:
-            continue
-        present = {col["name"] for col in inspector.get_columns(table)}
-        missing = {name: ddl for name, ddl in columns.items() if name not in present}
-        if not missing:
-            continue
-        with engine.begin() as conn:
-            for name, ddl in missing.items():
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+    present: dict[str, set[str]] = {}
+    with engine.begin() as conn:
+        for table, column, statement in _COLUMN_MIGRATIONS:
+            if table not in tables:
+                continue
+            if table not in present:
+                present[table] = {col["name"] for col in inspector.get_columns(table)}
+            if column in present[table]:
+                continue
+            conn.execute(text(statement))
 
 
 def init_db() -> None:

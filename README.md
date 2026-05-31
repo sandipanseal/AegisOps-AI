@@ -135,7 +135,7 @@ them — **lifecycle workflow (1)**, **SLA tracking (2)**, **AI confidence expla
 **runbook risk scoring (4)**, and **human RCA feedback (5)** — on a single page:
 
 <p align="center">
-  <img src="docs/images/incident-lifecycle.png" alt="Incident detail: lifecycle, SLA, confidence breakdown, RCA feedback and runbook risk" width="900" />
+  <img src="docs/images/incident-detail.png" alt="Incident detail: lifecycle, SLA, confidence breakdown, RCA feedback and runbook risk" width="900" />
 </p>
 
 <table>
@@ -153,7 +153,7 @@ them — **lifecycle workflow (1)**, **SLA tracking (2)**, **AI confidence expla
   </tr>
   <tr>
     <td><img src="docs/images/canary.png" alt="Canary deployment analysis" /></td>
-    <td><img src="docs/images/eval-dataset.png" alt="RCA eval dataset manager" /></td>
+    <td><img src="docs/images/eval-center.png" alt="RCA eval dataset manager" /></td>
   </tr>
 </table>
 
@@ -161,7 +161,7 @@ them — **lifecycle workflow (1)**, **SLA tracking (2)**, **AI confidence expla
 integrations control center:
 
 <p align="center">
-  <img src="docs/images/tool-fault-injection.png" alt="Tool-failure fallback simulation and prompt-injection scanning" width="900" />
+  <img src="docs/images/integrations.png" alt="Tool-failure fallback simulation and prompt-injection scanning" width="900" />
 </p>
 
 ## Product tour
@@ -184,13 +184,15 @@ execution traces with latencies, and a chronological timeline.
 ### Integrations control center
 
 Exercise every live integration from the browser — Loki log search, the Kubernetes
-adapter, Slack/PagerDuty notifications, RAG memory, and InferOps model usage.
+adapter, Slack/PagerDuty notifications, RAG memory, and InferOps model usage — plus the
+tool-failure fallback simulation and the prompt-injection log scanner.
 
 ![Integrations control center](docs/images/integrations.png)
 
 ### Evaluation center
 
-Run the RCA benchmark and track correctness scores so analysis quality is held
+Manage the RCA eval dataset (seeded from scenarios, extended by hand or from human
+feedback), run the benchmark, and track correctness scores so analysis quality is held
 accountable over time.
 
 ![Evaluation center](docs/images/eval-center.png)
@@ -273,11 +275,14 @@ workflow always runs end to end.
 
 | Layer | Tools |
 |---|---|
-| Backend | FastAPI, SQLAlchemy, PostgreSQL |
+| Backend | FastAPI (modular per-feature routers), SQLAlchemy, PostgreSQL |
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind, Framer Motion, react-three-fiber (3D) |
 | Agents | Python agent classes, tool adapters, InferOps AI gateway |
+| Incident operations | Lifecycle state machine, SLA engine, runbook risk scoring, canary analysis, service dependency graph |
+| AI quality & safety | Confidence explanations, human RCA feedback loop, eval dataset + benchmark, prompt-injection guard, tool-fault fallback simulation |
 | Monitored services | FastAPI microservices exposing real Prometheus metrics |
 | Observability | Prometheus, Grafana, Loki, OpenTelemetry |
+| Testing | pytest (backend regression — core + all 10 features), Playwright (frontend e2e) |
 | Deployment | Docker Compose, Kubernetes manifests, GitHub Actions |
 
 ## How to run
@@ -354,7 +359,7 @@ Then follow the [Workflow](#workflow) below to drive an incident end to end.
 Useful for hot-reload while developing. Run each in its own terminal:
 
 ```powershell
-# Backend (needs a reachable PostgreSQL; set DATABASE_URL accordingly)
+# Backend (defaults to a local SQLite file; set DATABASE_URL for PostgreSQL)
 cd backend
 python -m venv .venv; .venv\Scripts\activate
 pip install -r requirements.txt
@@ -518,8 +523,8 @@ All automated tests live under [`Tests/`](Tests/), split by surface:
 
 | Suite | Path | Coverage |
 |---|---|---|
-| Backend regression | `Tests/backend/` | pytest API suite — health, full incident lifecycle (create → analyze → approve runbook → postmortem), evals, and graceful integration fallbacks. Runs on in-memory SQLite with no external services. |
-| Frontend end-to-end | `Tests/e2e/` | Playwright suite — dashboard + 3D topology, navigation, the complete incident workflow, fault injection, benchmark, and integrations. |
+| Backend regression | `Tests/backend/` | pytest API suite — health, the full incident workflow (create → analyze → approve runbook → postmortem), evals, graceful integration fallbacks, **and all ten operations/reliability features** (`test_features.py`: lifecycle, SLA, confidence, runbook risk, RCA feedback, tool faults, injection, eval dataset, canary, dependency graph). Runs on in-memory SQLite with no external services. |
+| Frontend end-to-end | `Tests/e2e/` | Playwright suite — dashboard + 3D topology, navigation, the complete incident workflow, fault injection, benchmark, integrations, **and feature smoke tests** (`features.spec.ts`: SLA, dependency graph, canary, lifecycle transitions, RCA feedback, eval dataset, tool faults, injection scan). |
 
 ### Backend tests
 
@@ -547,29 +552,37 @@ npm run test:e2e                    # or: npm run test:e2e:ui
 Every push to `main` and every pull request runs three jobs in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
 
-- **backend-ci** — installs deps, byte-compiles, runs the pytest suite.
-- **frontend-ci** — builds and type-checks the Next.js app.
-- **e2e** — starts PostgreSQL + the backend + the frontend, runs the Playwright suite,
-  and uploads the HTML report as an artifact.
+- **backend-ci** — installs deps, byte-compiles, runs the full pytest suite (core
+  workflow + all ten features; `pytest` auto-discovers every file under `Tests/backend/`).
+- **frontend-ci** — builds and type-checks the Next.js app (every route, including the new
+  SLA, dependency-graph, and canary pages).
+- **e2e** — starts PostgreSQL + the backend + the frontend, runs the Playwright suite
+  (workflow + feature smoke tests), and uploads the HTML report as an artifact.
 
 ## Project layout
 
 ```text
 aegisops-ai/
-├── backend/            FastAPI app — agents, services, runbooks, metrics
+├── backend/            FastAPI app — agents, routers, services, runbooks, metrics
 │   └── app/
-│       ├── agents/         RCA + safety agents
-│       ├── services/       orchestration, evidence collectors, integrations
-│       ├── data/           incident scenarios
-│       └── runbooks/        YAML runbooks
+│       ├── agents/         RCA (confidence-aware) + safety agents
+│       ├── routers/        per-feature API routers: lifecycle, sla, confidence,
+│       │                   runbooks_risk, feedback, tools_fault, injection,
+│       │                   eval_dataset, canary, dependency_graph
+│       ├── services/       orchestration, evidence collectors, integrations, and
+│       │                   feature logic (lifecycle, sla, canary, risk, feedback,
+│       │                   eval dataset, confidence, tool faults, injection detector)
+│       ├── data/           scenarios, SLA policies, dependency graph, injection patterns
+│       └── runbooks/        YAML runbooks (with risk-scoring metadata)
 ├── frontend/           Next.js command center
-│   ├── app/                routes: command, incidents, evals, integrations
-│   ├── components/         UI kit, nav, animated background, 3D topology
+│   ├── app/                routes: command, incidents, sla, dependencies, canary,
+│   │                       evals, integrations
+│   ├── components/         UI kit, nav, 3D topology, incident panels, feature panels
 │   └── lib/                API client + types, formatting helpers
 ├── services/           monitored FastAPI microservices (Prometheus metrics)
 ├── Tests/              automated tests
-│   ├── backend/            pytest regression suite
-│   └── e2e/                Playwright end-to-end suite
+│   ├── backend/            pytest regression (core workflow + all 10 features)
+│   └── e2e/                Playwright e2e (full workflow + feature smoke tests)
 ├── observability/      Prometheus, Grafana dashboards, Loki config
 └── deployment/         Docker Compose + Kubernetes manifests
 ```

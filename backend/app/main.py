@@ -17,10 +17,12 @@ from app.services.postmortem_service import PostmortemService
 from app.services.scenario_service import list_scenarios, get_scenario
 from app.services import tool_faults, runbook_risk_service
 from app.routers import ALL_ROUTERS
+from app.config import cors_origins_list
 from app.metrics import RUNBOOK_REJECTIONS, INCIDENT_STATUS, INCIDENT_TRANSITIONS
 
 app = FastAPI(title="AegisOps AI", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# Explicit allow-list (configurable via CORS_ALLOW_ORIGINS) instead of the "*" wildcard.
+app.add_middleware(CORSMiddleware, allow_origins=cors_origins_list(), allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 FastAPIInstrumentor.instrument_app(app)
 
 for _router in ALL_ROUTERS:
