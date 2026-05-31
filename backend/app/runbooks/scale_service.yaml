@@ -2,6 +2,11 @@ name: scale_service
 description: Increase replicas during traffic or resource pressure.
 risk_level: medium
 requires_approval: true
+# Risk-scoring inputs (feature 4)
+blast_radius: low         # additive capacity change, no version change
+reversibility: high       # replicas can be scaled back down
+data_loss_risk: low
+recovery_minutes: 3
 steps:
   - Check current replica count
   - Increase replicas by two

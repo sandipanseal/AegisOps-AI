@@ -4,6 +4,7 @@ import time
 import httpx
 from app.config import settings
 from app.metrics import LOKI_QUERIES, TOOL_FAILURES
+from app.services import tool_faults
 
 
 class LokiClient:
@@ -31,6 +32,10 @@ class LokiClient:
             return {"status": "failed", "error": str(exc), "lines": 0}
 
     def search_logs(self, service_name: str, minutes: int = 60, limit: int = 50) -> list[str]:
+        if tool_faults.is_active("loki"):
+            tool_faults.record_fallback("loki")
+            LOKI_QUERIES.labels(status="failed").inc()
+            return []
         end_ns = int(time.time() * 1_000_000_000)
         start_ns = end_ns - minutes * 60 * 1_000_000_000
         params = {

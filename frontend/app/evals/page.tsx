@@ -5,6 +5,7 @@ import { FlaskConical } from "lucide-react";
 import { api, type EvalRun } from "@/lib/api";
 import { pct, timeAgo } from "@/lib/format";
 import { Button, Card, EmptyState, JsonBlock } from "@/components/ui";
+import { EvalDatasetManager } from "@/components/EvalDatasetManager";
 
 export default function EvalsPage() {
   const [evals, setEvals] = useState<EvalRun[]>([]);
@@ -54,6 +55,8 @@ export default function EvalsPage() {
           {message && <span className="text-sm text-emerald-300">{message}</span>}
         </div>
       </Card>
+
+      <EvalDatasetManager onChanged={load} />
 
       <div className="grid gap-4">
         {evals.length === 0 && (

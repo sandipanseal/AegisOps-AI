@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.config import settings
 from app.metrics import K8S_ADAPTER_CALLS, TOOL_FAILURES
+from app.services import tool_faults
 
 
 class KubernetesAdapter:
@@ -41,6 +42,10 @@ class KubernetesAdapter:
             return False
 
     def service_status(self, service_name: str, namespace: str = "default") -> dict | None:
+        if tool_faults.is_active("kubernetes"):
+            tool_faults.record_fallback("kubernetes")
+            K8S_ADAPTER_CALLS.labels(status="disabled").inc()
+            return None
         if not self._load():
             K8S_ADAPTER_CALLS.labels(status="disabled").inc()
             return None

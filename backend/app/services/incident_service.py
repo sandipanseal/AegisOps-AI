@@ -1,13 +1,14 @@
 import json
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.database import Incident, RCAReport, EvidenceRecord, AgentTrace, TimelineEvent, ModelInvocation
+from app.database import Incident, RCAReport, EvidenceRecord, AgentTrace, TimelineEvent, ModelInvocation, IncidentStateTransition, PromptInjectionDetection
 from app.schemas import IncidentCreate
 from app.services.evidence_collectors import LogAnalysisAgent, MetricsAnalysisAgent, KubernetesStateAgent, DeploymentHistoryAgent, RagMemoryAgent
 from app.services.notification_service import NotificationService
+from app.services import injection_detector
 from app.agents.rca_agent import RCAAgent
 from app.agents.base import run_agent
-from app.metrics import INCIDENTS_CREATED, INCIDENT_STATUS, RCA_REQUESTS, RCA_LATENCY, AI_CONFIDENCE_SCORE
+from app.metrics import INCIDENTS_CREATED, INCIDENT_STATUS, RCA_REQUESTS, RCA_LATENCY, AI_CONFIDENCE_SCORE, INCIDENT_TRANSITIONS, PROMPT_INJECTIONS
 
 
 class IncidentService:
@@ -19,6 +20,10 @@ class IncidentService:
 
     def _timeline(self, db: Session, incident_id: int, event_type: str, message: str, actor: str = "system") -> None:
         db.add(TimelineEvent(incident_id=incident_id, event_type=event_type, message=message, actor=actor))
+
+    def _transition(self, db: Session, incident_id: int, from_status: str, to_status: str, actor: str, note: str | None = None) -> None:
+        db.add(IncidentStateTransition(incident_id=incident_id, from_status=from_status, to_status=to_status, actor=actor, note=note))
+        INCIDENT_TRANSITIONS.labels(from_status=from_status, to_status=to_status).inc()
 
     def _refresh_status_metrics(self, db: Session) -> None:
         for status in ["open", "investigating", "resolved"]:
@@ -52,8 +57,11 @@ class IncidentService:
         if not incident:
             raise ValueError("Incident not found")
 
+        previous_status = incident.status
         incident.status = "investigating"
         incident.updated_at = datetime.utcnow()
+        if previous_status != "investigating":
+            self._transition(db, incident.id, previous_status, "investigating", "IncidentCommanderAgent", "Agentic RCA workflow started.")
         self._timeline(db, incident.id, "analysis_started", "Agentic RCA workflow started.", "IncidentCommanderAgent")
         db.commit()
 
@@ -85,6 +93,21 @@ class IncidentService:
                 evidence.append(ev)
                 db.add(EvidenceRecord(incident_id=incident.id, source=ev.source, summary=ev.summary, details=json.dumps(ev.details)))
 
+            # Prompt-injection defense (feature 7): scan every log line that would be
+            # fed into the RCA prompt and flag/record anything that looks like an
+            # attempt to hijack the model before synthesis runs.
+            injection_count = 0
+            for ev in evidence:
+                sample = (getattr(ev, "details", {}) or {}).get("sample_logs") if hasattr(ev, "details") else None
+                if not sample:
+                    continue
+                for det in injection_detector.scan(sample, source=ev.source):
+                    db.add(PromptInjectionDetection(incident_id=incident.id, source=det["source"], line=det["line"], pattern=det["pattern"], severity=det["severity"]))
+                    PROMPT_INJECTIONS.labels(severity=det["severity"]).inc()
+                    injection_count += 1
+            if injection_count:
+                self._timeline(db, incident.id, "prompt_injection_detected", f"Flagged {injection_count} possible prompt-injection pattern(s) in collected logs.", "PromptInjectionGuard")
+
             rca_run = run_agent(
                 self.rca_agent.name,
                 f"Synthesize RCA from {len(evidence)} evidence records",
@@ -101,6 +124,7 @@ class IncidentService:
             recommended_actions=json.dumps(rca.recommended_actions),
             risky_actions=json.dumps(rca.risky_actions),
             requires_human_approval=rca.requires_human_approval,
+            confidence_explanation=json.dumps(rca.confidence_explanation) if rca.confidence_explanation else None,
         ))
         model_call = self.rca_agent.last_model_invocation
         if model_call:

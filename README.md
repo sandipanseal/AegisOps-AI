@@ -100,6 +100,70 @@ gets better with every incident.
 - **Immersive UI** — a Next.js command center with a live 3D service topology, animated
   workflow, and dedicated incident, evaluation, and integration views.
 
+### Incident operations & reliability
+
+Ten operator-grade capabilities layered on top of the core workflow:
+
+1. **Incident lifecycle workflow** — a validated state machine (`open → acknowledged →
+   investigating → identified → mitigating → resolved → closed`) with an audit trail,
+   assignment, and reopen support. Illegal transitions are rejected.
+2. **SLA tracking** — per-severity acknowledge/resolve budgets with live remaining time,
+   breach detection, and fleet-wide compliance, surfaced on a dedicated **/sla** view.
+3. **AI confidence explanation** — every RCA score ships with an auditable factor
+   breakdown (evidence coverage, signal strength, historical precedent, LLM vs.
+   deterministic synthesis) so the number is never opaque.
+4. **Runbook risk scoring** — each runbook is scored 0–100 from blast radius,
+   reversibility, and data-loss risk, with the factor breakdown shown before approval.
+5. **Human RCA feedback** — reviewers rate each RCA and submit corrections; a correction
+   is promoted into the eval dataset, closing the quality loop.
+6. **Tool failure fallback simulation** — toggle simulated failures of Loki, Kubernetes,
+   service HTTP, the InferOps gateway, or RAG to exercise the platform's graceful
+   degradation on demand.
+7. **Prompt-injection detection in logs** — log lines feeding the RCA prompt are scanned
+   against known injection signatures, flagged, and redacted before synthesis.
+8. **RCA eval dataset manager** — the benchmark runs over a first-class, editable dataset
+   (seeded from scenarios, extendable by hand or from human feedback).
+9. **Canary deployment analysis** — compares a canary's golden signals against a baseline
+   and returns an automated promote / hold / rollback verdict with reasons.
+10. **Service dependency graph** — a tiered dependency map with blast-radius / impact
+    analysis showing which services a failure would cascade to.
+
+#### Feature gallery
+
+All ten capabilities are shown below. The incident detail view alone surfaces five of
+them — **lifecycle workflow (1)**, **SLA tracking (2)**, **AI confidence explanation (3)**,
+**runbook risk scoring (4)**, and **human RCA feedback (5)** — on a single page:
+
+<p align="center">
+  <img src="docs/images/incident-lifecycle.png" alt="Incident detail: lifecycle, SLA, confidence breakdown, RCA feedback and runbook risk" width="900" />
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="50%"><b>2 · SLA tracking</b></td>
+    <td align="center" width="50%"><b>10 · Service dependency graph</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/sla.png" alt="SLA tracking" /></td>
+    <td><img src="docs/images/dependencies.png" alt="Service dependency graph" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>9 · Canary deployment analysis</b></td>
+    <td align="center"><b>8 · RCA eval dataset manager</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/canary.png" alt="Canary deployment analysis" /></td>
+    <td><img src="docs/images/eval-dataset.png" alt="RCA eval dataset manager" /></td>
+  </tr>
+</table>
+
+**6 · Tool-failure fallback simulation** and **7 · prompt-injection detection** live on the
+integrations control center:
+
+<p align="center">
+  <img src="docs/images/tool-fault-injection.png" alt="Tool-failure fallback simulation and prompt-injection scanning" width="900" />
+</p>
+
 ## Product tour
 
 ### Command center
@@ -143,32 +207,67 @@ refreshing every 5 seconds.
 ```mermaid
 flowchart TD
   UI[Next.js Command Center] --> API[FastAPI Backend]
+
+  %% Persistence and observability
   API --> DB[(PostgreSQL)]
   API --> P[Prometheus]
   API --> Loki[(Loki)]
-  API --> SVC[Monitored Services]
-  API --> INF[InferOps AI Gateway]
-  INF --> LLM[Routed model]
+  P --> Grafana[Grafana Dashboard]
 
-  SVC --> Payment[payment-service]
-  SVC --> Checkout[checkout-service]
-  SVC --> Auth[auth-service]
-  SVC --> Reco[recommendation-service]
-
+  %% Agentic RCA workflow
   API --> Agents[Agentic RCA Workflow]
   Agents --> LogAgent[Log Analysis]
   Agents --> MetricsAgent[Metrics Analysis]
   Agents --> K8sAgent[Kubernetes State]
   Agents --> DeployAgent[Deployment History]
   Agents --> RagAgent[RAG Memory]
-  Agents --> RCAAgent[RCA Synthesis]
+  LogAgent --> Guard[7 Prompt-Injection Guard]
+  Guard --> RCAAgent[RCA Synthesis]
+  MetricsAgent --> RCAAgent
+  K8sAgent --> RCAAgent
+  DeployAgent --> RCAAgent
+  RagAgent --> RCAAgent
+  RCAAgent --> Conf[3 Confidence Explanation]
 
-  P --> Grafana[Grafana Dashboard]
+  %% Model routing with graceful fallback
+  RCAAgent --> INF[InferOps AI Gateway]
+  INF --> LLM[Routed model]
+  INF -. fallback .-> OpenAI[OpenAI direct]
+  OpenAI -. fallback .-> Det[Deterministic RCA]
+
+  %% Incident operations and reliability layer
+  API --> Ops[Incident Operations Layer]
+  Ops --> Life[1 Lifecycle State Machine]
+  Life --> SLA[2 SLA Tracking]
+  Ops --> Risk[4 Runbook Risk Scoring]
+  Risk --> Safety[Safety-Gated Runbooks]
+  Conf --> Feedback[5 Human RCA Feedback]
+  Feedback --> Eval[8 Eval Dataset and Benchmark]
+  Ops --> Canary[9 Canary Analysis]
+  Ops --> Graph[10 Service Dependency Graph]
+  Ops --> Faults[6 Tool Fault Injector]
+  Faults -. degrade .-> Agents
+
+  %% Monitored services
+  API --> SVC[Monitored Services]
+  Agents --> SVC
+  Agents --> Loki
+  Canary --> SVC
+  Graph --> SVC
+  SVC --> Payment[payment-service]
+  SVC --> Checkout[checkout-service]
+  SVC --> Auth[auth-service]
+  SVC --> Reco[recommendation-service]
 ```
 
-Evidence collection degrades gracefully: each agent reads live signals from the
-monitored services and Loki when available, and falls back to scenario fixtures
-otherwise, so the workflow always runs end to end.
+The numbered nodes map to the ten capabilities in
+[Incident operations & reliability](#incident-operations--reliability). Evidence
+collection degrades gracefully: each agent reads live signals from the monitored services
+and Loki when available, and falls back to scenario fixtures otherwise. The **tool fault
+injector (6)** can force that degradation on demand, the **prompt-injection guard (7)**
+sanitizes log evidence before it reaches the model, and model synthesis itself falls back
+from the InferOps gateway to a direct OpenAI call to a deterministic synthesizer — so the
+workflow always runs end to end.
 
 ## Tech stack
 
@@ -233,6 +332,9 @@ show Uvicorn listening on `:8000`.
 |---|---|
 | Command center | http://localhost:3000 |
 | Incident center | http://localhost:3000/incidents |
+| SLA tracking | http://localhost:3000/sla |
+| Dependency graph | http://localhost:3000/dependencies |
+| Canary analysis | http://localhost:3000/canary |
 | Evaluation center | http://localhost:3000/evals |
 | Integrations | http://localhost:3000/integrations |
 | Backend API docs | http://localhost:8000/docs |
@@ -361,6 +463,18 @@ signals when disabled.
 | `GET /kubernetes/{service}/status` | Query the Kubernetes adapter |
 | `GET /model-usage` | InferOps AI cost and latency |
 | `GET /metrics` | Prometheus metrics |
+| `POST /incidents/{id}/transition` | Drive the incident lifecycle state machine |
+| `POST /incidents/{id}/assign` | Assign an incident owner |
+| `GET /incidents/{id}/lifecycle` | Lifecycle state, allowed transitions, audit trail |
+| `GET /incidents/{id}/sla` · `GET /sla/overview` | SLA budgets, breach state, compliance |
+| `GET /incidents/{id}/confidence` | RCA confidence factor breakdown |
+| `GET /runbooks/risk` · `GET /runbooks/{name}/risk` | Runbook risk scores |
+| `POST /incidents/{id}/rca-feedback` | Submit human RCA feedback / correction |
+| `GET /tools/faults` · `POST /tools/{tool}/simulate-failure` | Tool fault injection |
+| `POST /logs/scan-injection` | Scan log lines for prompt-injection patterns |
+| `GET /evals/dataset` · `POST /evals/dataset` | Manage the RCA eval dataset |
+| `POST /canary/analyze` · `GET /canary/analyses` | Canary deployment analysis |
+| `GET /services/dependency-graph` · `GET /services/{name}/impact` | Dependency graph & blast radius |
 
 ## Observability metrics
 
@@ -379,6 +493,19 @@ aegisops_notifications_sent_total
 aegisops_loki_queries_total
 aegisops_k8s_adapter_calls_total
 aegisops_rag_queries_total
+aegisops_incident_transitions_total
+aegisops_sla_breaches_total
+aegisops_sla_compliance_ratio
+aegisops_time_to_acknowledge_seconds
+aegisops_time_to_resolve_seconds
+aegisops_runbook_risk_score
+aegisops_rca_feedback_total
+aegisops_tool_faults_injected_total
+aegisops_tool_fallbacks_total
+aegisops_prompt_injections_detected_total
+aegisops_eval_dataset_cases
+aegisops_canary_analyses_total
+aegisops_dependency_blast_radius
 ```
 
 > Prometheus counters live in the backend process, so they reset when the backend

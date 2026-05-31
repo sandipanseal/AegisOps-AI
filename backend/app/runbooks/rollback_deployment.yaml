@@ -2,6 +2,11 @@ name: rollback_deployment
 description: Roll back to previous stable deployment revision.
 risk_level: high
 requires_approval: true
+# Risk-scoring inputs (feature 4)
+blast_radius: high        # changes the running version for all traffic
+reversibility: medium     # can roll forward again but requires a redeploy
+data_loss_risk: medium    # schema/state drift between versions is possible
+recovery_minutes: 15
 steps:
   - Identify current deployment revision
   - Identify previous stable revision

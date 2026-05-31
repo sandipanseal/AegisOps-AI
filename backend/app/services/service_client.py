@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from app.config import service_registry_map
 from app.metrics import TOOL_FAILURES
+from app.services import tool_faults
 
 
 class ServiceClient:
@@ -12,6 +13,9 @@ class ServiceClient:
         self.urls = service_registry_map()
 
     def get(self, service_name: str, path: str) -> dict | None:
+        if tool_faults.is_active("service"):
+            tool_faults.record_fallback("service")
+            return None
         base = self.urls.get(service_name)
         if not base:
             return None
@@ -24,6 +28,9 @@ class ServiceClient:
             return None
 
     def post(self, service_name: str, path: str, payload: dict | None = None) -> dict | None:
+        if tool_faults.is_active("service"):
+            tool_faults.record_fallback("service")
+            return None
         base = self.urls.get(service_name)
         if not base:
             return None

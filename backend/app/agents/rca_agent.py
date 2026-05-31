@@ -2,6 +2,7 @@ from app.schemas import Evidence, RCAResult
 from app.data.scenarios import SCENARIOS
 from app.services.inferops_client import InferOpsClient
 from app.services.openai_client import OpenAIClient
+from app.services import confidence_service
 
 
 class RCAAgent:
@@ -43,15 +44,19 @@ recommend destructive action without human approval.
             gateway_result = self.openai.synthesize_rca_with_metadata(prompt)
         self.last_model_invocation = gateway_result
         gateway_text = gateway_result["text"] if gateway_result else None
+        used_llm = bool(gateway_text)
         if gateway_text:
             suspected = gateway_text[:1800]
-            confidence = {"critical": 0.88, "high": 0.84, "medium": 0.76, "low": 0.68}.get(incident.severity, 0.78)
         else:
             suspected = (
                 f"The most likely root cause is {expected_root_cause}. "
                 f"This is supported by correlated evidence from {evidence_summary}."
             )
-            confidence = {"critical": 0.86, "high": 0.82, "medium": 0.74, "low": 0.65}.get(incident.severity, 0.78)
+
+        # Confidence and its human-readable explanation are produced together so the
+        # score and the factor breakdown can never disagree (feature 3).
+        assessment = confidence_service.assess(incident, evidence, used_llm)
+        confidence = assessment["score"]
 
         safe_actions = [
             "Create incident report with deployment correlation",
@@ -72,4 +77,5 @@ recommend destructive action without human approval.
             recommended_actions=safe_actions,
             risky_actions=risky_actions,
             requires_human_approval=True,
+            confidence_explanation=assessment,
         )

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Bell, Cpu, Database, Search, Server, Zap } from "lucide-react";
 import { api, SERVICES } from "@/lib/api";
 import { Button, Card, SectionTitle } from "@/components/ui";
+import { ToolFaultPanel } from "@/components/ToolFaultPanel";
+import { InjectionScanPanel } from "@/components/InjectionScanPanel";
 
 export default function IntegrationsPage() {
   const [serviceName, setServiceName] = useState<string>(SERVICES[0]);
@@ -107,6 +109,10 @@ export default function IntegrationsPage() {
           </div>
         </div>
       </Card>
+
+      <ToolFaultPanel />
+
+      <InjectionScanPanel />
 
       <Card delay={0.16}>
         <SectionTitle eyebrow="Output" title="Response" />

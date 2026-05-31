@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, BarChart3, Boxes, LineChart, Plug } from "lucide-react";
+import { Activity, BarChart3, Boxes, Gauge, LineChart, Network, Plug, Rocket } from "lucide-react";
 import { GRAFANA_URL } from "@/lib/api";
 
 const links = [
   { href: "/", label: "Command", icon: Activity },
   { href: "/incidents", label: "Incidents", icon: Boxes },
+  { href: "/sla", label: "SLA", icon: Gauge },
+  { href: "/dependencies", label: "Dependencies", icon: Network },
+  { href: "/canary", label: "Canary", icon: Rocket },
   { href: "/evals", label: "Evaluations", icon: BarChart3 },
   { href: "/integrations", label: "Integrations", icon: Plug },
 ];

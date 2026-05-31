@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
@@ -6,18 +7,24 @@ from starlette.responses import Response
 from sqlalchemy.orm import Session
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-from app.database import SessionLocal, init_db, Incident, RCAReport, RunbookExecution, EvidenceRecord, AgentTrace, TimelineEvent, Postmortem, EvaluationResult, NotificationEvent, ModelInvocation
+from app.database import SessionLocal, init_db, Incident, RCAReport, RunbookExecution, EvidenceRecord, AgentTrace, TimelineEvent, Postmortem, EvaluationResult, NotificationEvent, ModelInvocation, IncidentStateTransition
 from app.schemas import IncidentCreate, RunbookApproval, EvalRequest
+from app.deps import get_db
 from app.services.incident_service import IncidentService
 from app.services.runbook_executor import RunbookExecutor
 from app.services.evaluation_service import EvaluationService
 from app.services.postmortem_service import PostmortemService
 from app.services.scenario_service import list_scenarios, get_scenario
-from app.metrics import RUNBOOK_REJECTIONS, INCIDENT_STATUS
+from app.services import tool_faults, runbook_risk_service
+from app.routers import ALL_ROUTERS
+from app.metrics import RUNBOOK_REJECTIONS, INCIDENT_STATUS, INCIDENT_TRANSITIONS
 
 app = FastAPI(title="AegisOps AI", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 FastAPIInstrumentor.instrument_app(app)
+
+for _router in ALL_ROUTERS:
+    app.include_router(_router)
 
 incident_service = IncidentService()
 runbook_executor = RunbookExecutor()
@@ -28,12 +35,10 @@ postmortem_service = PostmortemService()
 @app.on_event("startup")
 def startup() -> None:
     init_db()
-
-
-def get_db():
+    # Rehydrate simulated tool-fault state (feature 6) from the database.
     db = SessionLocal()
     try:
-        yield db
+        tool_faults.load_from_db(db)
     finally:
         db.close()
 
@@ -42,6 +47,9 @@ def _incident_dict(item: Incident) -> dict:
     return {
         "id": item.id, "title": item.title, "description": item.description, "service_name": item.service_name,
         "severity": item.severity, "status": item.status, "scenario_key": item.scenario_key,
+        "assignee": item.assignee,
+        "acknowledged_at": item.acknowledged_at.isoformat() if item.acknowledged_at else None,
+        "resolved_at": item.resolved_at.isoformat() if item.resolved_at else None,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "updated_at": item.updated_at.isoformat() if item.updated_at else None,
     }
@@ -116,8 +124,8 @@ def incident_detail(incident_id: int, db: Session = Depends(get_db)):
         "incident": _incident_dict(incident),
         "evidence": [{"source": e.source, "summary": e.summary, "details": json.loads(e.details)} for e in db.query(EvidenceRecord).filter(EvidenceRecord.incident_id == incident_id).order_by(EvidenceRecord.id.asc()).all()],
         "agent_traces": [{"agent_name": t.agent_name, "status": t.status, "latency_ms": t.latency_ms, "input_summary": t.input_summary, "output_summary": t.output_summary, "created_at": t.created_at.isoformat()} for t in db.query(AgentTrace).filter(AgentTrace.incident_id == incident_id).order_by(AgentTrace.id.asc()).all()],
-        "rca": None if not rca else {"suspected_root_cause": rca.suspected_root_cause, "confidence_score": rca.confidence_score, "recommended_actions": json.loads(rca.recommended_actions), "risky_actions": json.loads(rca.risky_actions), "requires_human_approval": rca.requires_human_approval, "created_at": rca.created_at.isoformat()},
-        "runbooks": [{"runbook_name": r.runbook_name, "approved_by": r.approved_by, "status": r.status, "result": r.result, "created_at": r.created_at.isoformat()} for r in db.query(RunbookExecution).filter(RunbookExecution.incident_id == incident_id).order_by(RunbookExecution.id.asc()).all()],
+        "rca": None if not rca else {"suspected_root_cause": rca.suspected_root_cause, "confidence_score": rca.confidence_score, "recommended_actions": json.loads(rca.recommended_actions), "risky_actions": json.loads(rca.risky_actions), "requires_human_approval": rca.requires_human_approval, "confidence_explanation": json.loads(rca.confidence_explanation) if rca.confidence_explanation else None, "created_at": rca.created_at.isoformat()},
+        "runbooks": [{"runbook_name": r.runbook_name, "approved_by": r.approved_by, "status": r.status, "result": r.result, "risk_score": r.risk_score, "created_at": r.created_at.isoformat()} for r in db.query(RunbookExecution).filter(RunbookExecution.incident_id == incident_id).order_by(RunbookExecution.id.asc()).all()],
         "timeline": [{"event_type": x.event_type, "message": x.message, "actor": x.actor, "created_at": x.created_at.isoformat()} for x in db.query(TimelineEvent).filter(TimelineEvent.incident_id == incident_id).order_by(TimelineEvent.id.asc()).all()],
         "postmortem": None if not postmortem else postmortem.markdown,
     }
@@ -156,11 +164,21 @@ def approve_runbook(payload: RunbookApproval, db: Session = Depends(get_db)):
         return {"status": "rejected", "message": "Runbook execution rejected by human reviewer."}
     try:
         result = runbook_executor.execute(payload.runbook_name, incident.service_name)
+        risk = runbook_risk_service.score_runbook({**runbook_executor.load(payload.runbook_name), "key": payload.runbook_name})
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    result["risk"] = risk
+    previous_status = incident.status
+    now = datetime.utcnow()
+    if incident.acknowledged_at is None:
+        incident.acknowledged_at = now
     incident.status = "resolved"
-    db.add(RunbookExecution(incident_id=incident.id, runbook_name=payload.runbook_name, approved_by=payload.approved_by, status=result["status"], result=json.dumps(result)))
-    db.add(TimelineEvent(incident_id=incident.id, event_type="runbook_executed", message=f"{payload.runbook_name} executed in simulation mode.", actor=payload.approved_by))
+    incident.resolved_at = now
+    incident.updated_at = now
+    db.add(IncidentStateTransition(incident_id=incident.id, from_status=previous_status, to_status="resolved", actor=payload.approved_by, note=f"Resolved via runbook {payload.runbook_name}."))
+    INCIDENT_TRANSITIONS.labels(from_status=previous_status, to_status="resolved").inc()
+    db.add(RunbookExecution(incident_id=incident.id, runbook_name=payload.runbook_name, approved_by=payload.approved_by, status=result["status"], result=json.dumps(result), risk_score=risk["risk_score"]))
+    db.add(TimelineEvent(incident_id=incident.id, event_type="runbook_executed", message=f"{payload.runbook_name} executed in simulation mode (risk {risk['risk_score']}/100).", actor=payload.approved_by))
     db.commit()
     return result
 

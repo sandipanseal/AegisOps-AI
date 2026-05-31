@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float, Boolean, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Text, Float, Boolean, DateTime, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
@@ -18,6 +18,10 @@ class Incident(Base):
     severity = Column(String(40), nullable=False)
     status = Column(String(40), default="open")
     scenario_key = Column(String(120), default="custom")
+    # Incident lifecycle workflow: owner + key lifecycle timestamps used for SLA tracking.
+    assignee = Column(String(120), nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
@@ -56,6 +60,8 @@ class RCAReport(Base):
     recommended_actions = Column(Text, nullable=False)
     risky_actions = Column(Text, nullable=False)
     requires_human_approval = Column(Boolean, default=True)
+    # AI confidence explanation: JSON breakdown of the factors behind the score.
+    confidence_explanation = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -68,6 +74,8 @@ class RunbookExecution(Base):
     approved_by = Column(String(120), nullable=False)
     status = Column(String(80), nullable=False)
     result = Column(Text, nullable=False)
+    # Runbook risk scoring: 0-100 score computed at approval time.
+    risk_score = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -142,5 +150,121 @@ class ModelInvocation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class IncidentStateTransition(Base):
+    """Audit trail of incident lifecycle state changes."""
+    __tablename__ = "incident_state_transitions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    from_status = Column(String(40), nullable=False)
+    to_status = Column(String(40), nullable=False)
+    actor = Column(String(120), default="system")
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RCAFeedback(Base):
+    """Human feedback on an RCA report — feeds the eval dataset."""
+    __tablename__ = "rca_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=False, index=True)
+    rca_id = Column(Integer, nullable=True)
+    verdict = Column(String(40), nullable=False)  # accurate | partially_accurate | inaccurate
+    rating = Column(Integer, nullable=True)  # 1-5
+    corrected_root_cause = Column(Text, nullable=True)
+    comment = Column(Text, nullable=True)
+    reviewer = Column(String(120), default="sre-oncall")
+    promoted_to_eval = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EvalCase(Base):
+    """A single RCA benchmark case in the managed eval dataset."""
+    __tablename__ = "eval_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(160), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    service_name = Column(String(120), nullable=False)
+    severity = Column(String(40), default="medium")
+    description = Column(Text, default="")
+    expected_root_cause = Column(Text, nullable=False)
+    logs = Column(Text, default="[]")  # JSON list of representative log lines
+    source = Column(String(40), default="custom")  # builtin | custom | human_feedback
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CanaryAnalysis(Base):
+    """Result of a canary-vs-baseline deployment comparison."""
+    __tablename__ = "canary_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=True, index=True)
+    service_name = Column(String(120), nullable=False)
+    verdict = Column(String(40), nullable=False)  # promote | hold | rollback
+    score = Column(Float, nullable=False)
+    baseline = Column(Text, nullable=False)  # JSON
+    canary = Column(Text, nullable=False)  # JSON
+    reasons = Column(Text, nullable=False)  # JSON list
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PromptInjectionDetection(Base):
+    """A flagged prompt-injection attempt found while scanning logs/evidence."""
+    __tablename__ = "prompt_injection_detections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, nullable=True, index=True)
+    source = Column(String(120), nullable=False)
+    line = Column(Text, nullable=False)
+    pattern = Column(String(160), nullable=False)
+    severity = Column(String(40), default="medium")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ToolFaultInjection(Base):
+    """Persisted on/off state for simulated tool failures (fallback testing)."""
+    __tablename__ = "tool_fault_injections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tool = Column(String(80), nullable=False, index=True)
+    active = Column(Boolean, default=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+# Columns added to pre-existing tables after the initial release. create_all only
+# creates missing tables, so we additively patch missing columns for databases
+# (e.g. an existing PostgreSQL volume) that were created before these features.
+_ADDED_COLUMNS = {
+    "incidents": {
+        "assignee": "VARCHAR(120)",
+        "acknowledged_at": "TIMESTAMP",
+        "resolved_at": "TIMESTAMP",
+    },
+    "rca_reports": {"confidence_explanation": "TEXT"},
+    "runbook_executions": {"risk_score": "DOUBLE PRECISION"},
+}
+
+
+def _ensure_columns() -> None:
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    for table, columns in _ADDED_COLUMNS.items():
+        if table not in tables:
+            continue
+        present = {col["name"] for col in inspector.get_columns(table)}
+        missing = {name: ddl for name, ddl in columns.items() if name not in present}
+        if not missing:
+            continue
+        with engine.begin() as conn:
+            for name, ddl in missing.items():
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()

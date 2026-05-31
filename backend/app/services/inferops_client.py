@@ -4,6 +4,7 @@ import time
 import httpx
 from app.config import settings
 from app.metrics import INFEROPS_CALLS, TOOL_FAILURES, MODEL_LATENCY, MODEL_COST, MODEL_TOKENS
+from app.services import tool_faults
 
 
 class InferOpsClient:
@@ -22,6 +23,10 @@ class InferOpsClient:
 
     def synthesize_rca_with_metadata(self, prompt: str) -> dict | None:
         if not self.base_url:
+            return None
+        if tool_faults.is_active("inferops"):
+            tool_faults.record_fallback("inferops")
+            INFEROPS_CALLS.labels(status="failed").inc()
             return None
 
         headers = {"Content-Type": "application/json"}

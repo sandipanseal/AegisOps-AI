@@ -7,6 +7,7 @@ from collections import Counter
 from sqlalchemy.orm import Session
 from app.database import Incident, RCAReport, RunbookExecution, EvidenceRecord, RagDocument
 from app.metrics import RAG_QUERIES
+from app.services import tool_faults
 from pathlib import Path
 
 TOKEN_RE = re.compile(r"[a-zA-Z0-9_\-]+")
@@ -52,6 +53,10 @@ class RagService:
         return {"indexed_documents": count}
 
     def search(self, db: Session, query: str, limit: int = 5) -> list[dict]:
+        if tool_faults.is_active("rag"):
+            tool_faults.record_fallback("rag")
+            RAG_QUERIES.labels(source="fault_injected").inc()
+            return []
         docs = db.query(RagDocument).all()
         if not docs:
             self.reindex(db)

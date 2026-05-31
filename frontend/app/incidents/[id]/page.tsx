@@ -14,6 +14,11 @@ import {
   Metric,
   SectionTitle,
 } from "@/components/ui";
+import { LifecyclePanel } from "@/components/incident/LifecyclePanel";
+import { SlaPanel } from "@/components/incident/SlaPanel";
+import { ConfidencePanel } from "@/components/incident/ConfidencePanel";
+import { RcaFeedbackPanel } from "@/components/incident/RcaFeedbackPanel";
+import { RunbookRiskPanel } from "@/components/incident/RunbookRiskPanel";
 
 export default function IncidentDetailPage({
   params,
@@ -50,6 +55,7 @@ export default function IncidentDetailPage({
   }
 
   const incident = detail.incident;
+  const incidentId = Number(id);
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-5 pb-20 pt-8 md:px-8">
@@ -83,6 +89,11 @@ export default function IncidentDetailPage({
         </div>
       </Card>
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        <LifecyclePanel incidentId={incidentId} onChanged={load} />
+        <SlaPanel incidentId={incidentId} />
+      </div>
+
       <Card delay={0.05}>
         <SectionTitle eyebrow="Synthesis" title="Root-cause analysis" />
         {detail.rca ? (
@@ -94,6 +105,8 @@ export default function IncidentDetailPage({
           <EmptyState>No RCA generated yet.</EmptyState>
         )}
       </Card>
+
+      <ConfidencePanel explanation={detail.rca?.confidence_explanation} />
 
       <Card delay={0.08}>
         <SectionTitle eyebrow="Signals" title="Evidence records" />
@@ -132,6 +145,10 @@ export default function IncidentDetailPage({
           </div>
         )}
       </Card>
+
+      <RcaFeedbackPanel incidentId={incidentId} onSubmitted={load} />
+
+      <RunbookRiskPanel />
 
       <Card delay={0.14}>
         <SectionTitle eyebrow="History" title="Timeline" />

@@ -68,3 +68,89 @@ export function pct(value?: number | null): string {
   if (value == null) return "—";
   return `${Math.round(value * 100)}%`;
 }
+
+// Lifecycle status -> tone (extends statusTone with the richer lifecycle states).
+export function lifecycleTone(status?: string): Tone {
+  switch ((status || "").toLowerCase()) {
+    case "resolved":
+    case "closed":
+      return "resolved";
+    case "investigating":
+    case "identified":
+    case "mitigating":
+      return "high";
+    case "acknowledged":
+      return "medium";
+    case "open":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}
+
+// SLA / canary signal status -> tone.
+export function slaTone(status?: string): Tone {
+  switch ((status || "").toLowerCase()) {
+    case "met":
+      return "resolved";
+    case "on_track":
+    case "ok":
+      return "resolved";
+    case "at_risk":
+    case "warn":
+      return "medium";
+    case "breached":
+    case "regression":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}
+
+export function riskTone(band?: string): Tone {
+  switch ((band || "").toLowerCase()) {
+    case "high":
+      return "critical";
+    case "medium":
+      return "medium";
+    case "low":
+      return "resolved";
+    default:
+      return "neutral";
+  }
+}
+
+export function verdictTone(verdict?: string): Tone {
+  switch ((verdict || "").toLowerCase()) {
+    case "promote":
+    case "accurate":
+      return "resolved";
+    case "hold":
+    case "partially_accurate":
+      return "medium";
+    case "rollback":
+    case "inaccurate":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}
+
+// Format a duration in seconds as a compact human string (supports negatives).
+export function duration(seconds?: number | null): string {
+  if (seconds == null) return "—";
+  const neg = seconds < 0;
+  let s = Math.abs(Math.round(seconds));
+  const d = Math.floor(s / 86400);
+  s -= d * 86400;
+  const h = Math.floor(s / 3600);
+  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  s -= m * 60;
+  const parts: string[] = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  if (!d && !h) parts.push(`${s}s`);
+  return (neg ? "-" : "") + parts.slice(0, 2).join(" ");
+}

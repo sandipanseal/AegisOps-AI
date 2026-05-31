@@ -2,6 +2,11 @@ name: restart_service
 description: Restart a Kubernetes deployment safely after approval.
 risk_level: high
 requires_approval: true
+# Risk-scoring inputs (feature 4)
+blast_radius: medium      # affects one service's pods
+reversibility: high       # a restart is easily re-run / self-healing
+data_loss_risk: low
+recovery_minutes: 5
 steps:
   - Capture current pod state
   - Confirm latest deployment version
